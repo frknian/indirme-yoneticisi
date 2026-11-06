@@ -223,7 +223,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(recording.added, [Uri.parse(url)]);
     expect(recording.lastMedia!.format, MediaFormat.mp3);
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    // Kayıt bitmeden klasör silinirse Windows açık dosya yüzünden reddeder.
+    await tester.runAsync(() => recording.settingsSaved);
     expect(controller.settings.mediaFormat, MediaFormat.mp3);
   });
 

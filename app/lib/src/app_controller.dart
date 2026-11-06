@@ -222,6 +222,9 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Bekleyen ayar kaydı bitince tamamlanır.
+  Future<void> get settingsSaved => _settingsWrite;
+
   /// Kayıtlar sıraya alınır: aynı anda iki yazım geçici dosyada çakışır. Hata
   /// indirmeyi etkilemez, kullanıcıya bildirilir.
   Future<void> _saveSettings() {
