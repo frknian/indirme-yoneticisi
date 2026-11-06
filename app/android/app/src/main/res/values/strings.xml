@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dm_downloading">İndiriliyor</string>
+    <string name="dm_pause_all">Tümünü duraklat</string>
+    <string name="dm_channel_name">İndirmeler</string>
+</resources>

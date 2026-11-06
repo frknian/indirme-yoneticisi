@@ -1,0 +1,16 @@
+name: dm_core
+description: Parçalı, devam ettirilebilir indirme motoru (UI'dan bağımsız, saf Dart).
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  args: ^2.5.0
+  crypto: ^3.0.3
+  path: ^1.9.0
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.0

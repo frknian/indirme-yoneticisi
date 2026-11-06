@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  core:
+    name: Çekirdek testleri (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - working-directory: packages/dm_core
+        run: dart pub get
+      - working-directory: packages/dm_core
+        run: dart analyze
+      - working-directory: packages/dm_core
+        run: dart test --reporter=expanded
+
+  app:
+    name: Uygulama (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: macos
+            artifact: app/build/macos/Build/Products/Release/download_manager.app
+          - os: windows-latest
+            target: windows
+            artifact: app/build/windows/x64/runner/Release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - working-directory: app
+        run: flutter pub get
+      - working-directory: app
+        run: flutter analyze
+      - working-directory: app
+        run: flutter test
+      - working-directory: app
+        run: flutter build ${{ matrix.target }} --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: download-manager-${{ matrix.target }}
+          path: ${{ matrix.artifact }}
+
+  extension:
+    name: Chrome eklentisi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - working-directory: extension
+        run: npm test

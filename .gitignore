@@ -1,0 +1,9 @@
+.dart_tool/
+build/
+*.iml
+.idea/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.part
+*.dmmeta
+.DS_Store

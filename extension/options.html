@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <title>İndirme Yöneticisi Ayarları</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>İndirme Yöneticisi Bağlantısı</h1>
+    <label for="token">Eşleştirme anahtarı</label>
+    <input id="token" type="password" autocomplete="off" spellcheck="false">
+    <p class="hint">Uygulamada Ayarlar &gt; Eşleştirme anahtarı bölümünden kopyalayın.</p>
+    <label for="port">Port</label>
+    <input id="port" type="number" min="1024" max="65535">
+    <button id="save" class="primary">Kaydet ve dene</button>
+    <div id="status" role="status"></div>
+  </main>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+# Kararlar
+
+- **Kök dizin:** `CLAUDE.md`'deki `download_manager/` yerine depo kökü `idm/` kullanıldı; alt yapı aynı.
+- **HTTP istemcisi:** `http`/`dio` yerine `dart:io HttpClient`; çekirdek bağımlılığı azalır, soket kesme ve isolate içi kullanım doğrudan olur.
+- **Bağımlılıklar:** `crypto` (SHA-256), `path` (yol işlemleri), `args` (CLI), `provider` (UI durumu), `path_provider` (klasörler), `file_selector` (birinci parti klasör seçici, listede yoktu).
+- **Küçük dosyalar:** parça başına en az 1 MiB; daha küçük dosyalar için gereksiz bağlantı açılmaz (test için ayarlanabilir).
+- **Dayanıklı ilerleme:** metadata yalnızca flush edilmiş baytları kaydeder (saniyede bir); çökmede en fazla son saniye tekrar indirilir.
+- **Bağlantı azaltma:** 429/503'te parça yeniden planlanmaz, eşzamanlı bağlantı sınırı yarıya iner; kalan parçalar sırayla bekler.
+- **Range'e 200 yanıtı:** yeniden yoklanır; doğrulayıcı değiştiyse dosya değişmiştir (baştan başla), değişmediyse tek bağlantıya düşülür.
+- **Baştan başlama sınırı:** dosya sürekli değişiyorsa 3 denemeden sonra `RemoteFileChangedException`.
+- **Mevcut dosya:** üzerine yazılmaz, `ad (1).uzanti` seçilir; aynı URL'nin `.dmmeta` kaydı varsa devam edilir.
+- **Gizli başlıklar:** `Authorization`, `Cookie`, `Proxy-Authorization` metadata ve kuyruk kaydına yazılmaz.
+- **Yakalama sunucusu güvenliği:** yalnız loopback + `Host` denetimi (DNS rebinding) + `Origin` denetimi (web siteleri) + eşleştirme anahtarı (yerel süreçler).
+- **Yakalama sunucusu konumu:** Flutter'a bağımlı olmadığı ve test edilebildiği için `dm_core` içinde; port varsayılanı 38765, ayarlanabilir.
+- **Native messaging yerine localhost:** kurulumda sistem manifesti gerektirmez ve platformlar arası aynı çalışır.
+- **Çerezler:** eklenti `cookies` izni istemez; oturum çerezlerini yerel sunucuya taşımak saldırı yüzeyini büyütür. Eksik olarak kabul edildi.
+- **Eklenti akışı:** önce uygulamaya gönderilir, yalnızca kabul edilirse Chrome indirmesi iptal edilir; uygulama kapalıysa indirme kaybolmaz.
+- **Paylaşılan linkler (Android):** başka uygulamalar intent gönderebildiği için doğrudan başlatılmaz, dolu onay penceresi açılır.
+- **Link intent'i:** yalnız `application/*`, `audio/*`, `video/*`; uygulama tüm web sayfaları için tarayıcı adayı olmasın.
+- **Android motoru:** önbelleğe alınmış `FlutterEngine`; Activity yok edilince isolate'lar ölmesin.
+- **Android depolama:** indirme uygulama klasörüne yapılır (kısmi yazma ve `.part` için), bitince MediaStore ile İndirilenler'e taşınır; depolama izni gerekmez. Bu nedenle Android'de klasör seçici yok.
+- **Android HTTP:** `usesCleartextTraffic=true`; indirme yöneticisi `http://` bağlantıları da açabilmeli.
+- **Android uyku:** servis, indirme sürerken 6 saat sınırlı `PARTIAL_WAKE_LOCK` tutar.
+- **macOS sandbox:** kapalı; kullanıcının seçtiği klasöre yeniden açılışlarda da yazabilmek için. App Store dağıtımı istenirse güvenlik kapsamlı yer imleriyle yeniden ele alınmalı.
+- **Ayarlar:** ek paket yerine uygulama destek klasöründe JSON dosyası.
+- **Kapanışta sürdürme:** kapanırken çalışan indirmeler açılışta kendiliğinden sürer; kullanıcının duraklattıkları duraklatılmış kalır.
+- **Dil:** arayüz, yorumlar ve dokümanlar Türkçe.
+- **Windows dosya kilitleri:** antivirüs ve indeksleyici kısa süreli kilit koyabildiği için `rename` ve `delete` geçici kilit hatalarında yeniden denenir.
+- **Windows doğrulaması:** Windows derlemesi macOS'ta yapılamadığı için GitHub Actions iş akışı (`.github/workflows/ci.yml`) testleri ve derlemeyi `windows-latest` üzerinde çalıştırır.
+- **Bağlantı ayarları:** zaman aşımı, yeniden deneme, indirme başına hız sınırı ve kimlik doğrulamasız HTTP proxy; proxy parolası düz metin ayar dosyasına yazılmasın diye desteklenmiyor.
+- **Hız sınırı:** indirme başına uygulanır ve kalan parçalara eşit bölünür; indirmeler arasında ortak bir sınır yok.
+- **Logo:** tek kaynak `app/lib/src/ui/logo.dart`; ikonlar `tool/generate_icons_test.dart` ve `tool/install_icons.py` ile üretilir, SVG kopyası `app/assets/logo/logo.svg`.
