@@ -113,6 +113,8 @@ List<String> mediaToolSearchDirs() {
     ],
     if (Platform.isWindows && env['LOCALAPPDATA'] != null)
       p.join(env['LOCALAPPDATA']!, 'Microsoft', 'WinGet', 'Links'),
+    if (Platform.isWindows && env['ProgramFiles'] != null)
+      p.join(env['ProgramFiles']!, 'WinGet', 'Links'),
   ];
 }
 

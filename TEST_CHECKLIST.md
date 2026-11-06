@@ -80,3 +80,11 @@ macOS'ta gerçek YouTube videosuyla MP4, MP3 ve oynatma listesi doğrulandı. CI
 - [ ] Araçları kaldırıp **Ayarlar > Video** bölümünde kurulum komutunun göründüğünü kontrol edin.
 - [ ] Arayüzden oynatma listesi ekleyin; videolar liste klasörüne inmeli.
 - [ ] Uzun bir videoda dönüştürme sırasında "Dönüştürülüyor" durumu görünmeli.
+
+## Yayınlanan paket
+
+CI paketleri açıp uygulamanın başladığını denetler, ama önceden VC++ kurulu olmayan temiz bir Windows'u ve arayüzü denemez.
+
+- [ ] Windows: ZIP'i ayıklayın, `download_manager.exe` açılsın ve pencere görünsün.
+- [ ] Windows: SmartScreen uyarısını geçin, bir dosya indirin.
+- [ ] Mac: ZIP'i tarayıcıdan indirin, **Yine de Aç** adımıyla uygulama açılsın.

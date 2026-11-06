@@ -13,10 +13,45 @@ destekliyorsa dosyayı en fazla 16 parçaya böler ve paralel indirir.
 | `app` | Flutter arayüzü ve Android servisi |
 | `extension` | Chrome eklentisi (Manifest V3) |
 
-## Kurulum
+## Hızlı kurulum
 
-Uygulama her işletim sisteminde kendi üzerinde derlenir: macOS sürümü Mac'te, Windows sürümü
-Windows'ta. Hazır paket yoktur.
+Geliştirici araçları gerekmez. [Son sürüm sayfasından](https://github.com/frknian/indirme-yoneticisi/releases/latest)
+bilgisayarınıza uygun dosyayı indirin. Uygulama imzasız olduğu için ilk açılışta bir güvenlik uyarısı çıkar.
+
+### Mac
+
+1. `IndirmeYoneticisi-macos.zip` dosyasını indirip açın.
+2. `download_manager` uygulamasını **Uygulamalar** klasörüne taşıyın ve çift tıklayın.
+3. Uyarı çıkarsa **Bitti**'ye basın. **Sistem Ayarları > Gizlilik ve Güvenlik** bölümünün altındaki **Yine de Aç** düğmesine basın.
+
+### Windows
+
+1. `IndirmeYoneticisi-windows.zip` dosyasına sağ tıklayıp **Tümünü ayıkla**'yı seçin. ZIP'in içinden doğrudan çalıştırmayın.
+2. Çıkan klasördeki `download_manager.exe` dosyasını açın. Yanındaki dosyaları silmeyin veya taşımayın.
+3. "Windows kişisel bilgisayarınızı korudu" uyarısı çıkarsa **Ek bilgi > Yine de çalıştır**'a basın.
+
+### Video ve MP3 için
+
+Normal dosya ve torrent indirmek için bu adım gerekmez. Video ve MP3 için `yt-dlp` ve `ffmpeg` gerekir.
+
+Windows'ta PowerShell'e yazın:
+
+```powershell
+winget install --id yt-dlp.yt-dlp -e
+```
+
+Mac'te önce [Homebrew](https://brew.sh) kurun, sonra Terminal'e yazın:
+
+```bash
+brew install yt-dlp ffmpeg
+```
+
+Ardından uygulamayı yeniden başlatın. **Ayarlar > Video** bölümünde araçlar görünmelidir.
+
+## Kaynaktan derleme
+
+Uygulamayı kendiniz derlemek istiyorsanız aşağıdaki adımları izleyin. Her işletim sistemi kendi üzerinde
+derlenir: macOS sürümü Mac'te, Windows sürümü Windows'ta.
 
 ### macOS
 
@@ -59,7 +94,7 @@ Windows'ta. Hazır paket yoktur.
    ```
 
 Uygulama geliştirici sertifikasıyla imzalı değildir. Başka bir Mac'e kopyalarsanız ilk açılışta
-Gatekeeper uyarı verir; uygulamaya sağ tıklayıp **Aç**'ı seçmek gerekir.
+Gatekeeper uyarı verir; **Sistem Ayarları > Gizlilik ve Güvenlik** bölümünden **Yine de Aç**'ı seçmek gerekir.
 
 ### Windows
 
@@ -301,3 +336,7 @@ Kararlar için [DECISIONS.md](DECISIONS.md), elle denenecekler için
   duraksayabilir.
 - Release APK şimdilik debug anahtarıyla imzalanır; Play Store için kendi anahtarınız gerekir.
 - Uygulama DRM korumasını aşmaya çalışmaz. Telifli içerik sorumluluğu kullanıcıya aittir.
+
+## Lisans
+
+[MIT](LICENSE). `packages/third_party/dtorrent_task_v2` kendi BSD 3-Clause lisansıyla dağıtılır.

@@ -41,3 +41,5 @@
 - **DRM:** aşılmaz. Bilinen ücretli platformlar araç çalıştırılmadan reddedilir, çünkü yt-dlp'nin genel yöntemi sayfadaki fragmanı indirip başarı bildiriyordu.
 - **Oynatma listesi:** her video kuyruğa ayrı görev olarak eklenir; eşzamanlılık, duraklatma ve hata izolasyonu mevcut kuyruktan gelir.
 - **Web sayfası yanıtı:** `Content-Type: text/html` dönen dosya indirmesi hata sayılır; sayfayı kaydedip "tamamlandı" demek yanıltıcıydı.
+- **Dağıtım:** hazır paketler `v*` etiketiyle GitHub Releases'e konur; Windows paketi VC++ çalışma zamanını içerir, Mac paketi `ditto` ile sıkıştırılır. Android paketi yayınlanmaz, çünkü CI'ın hata ayıklama anahtarıyla imzalanır.
+- **Lisans ve kimlik:** proje MIT lisanslıdır; commit'lerde GitHub'ın gizli e-posta adresi kullanılır.

@@ -5,6 +5,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   core:
     name: Çekirdek testleri (${{ matrix.os }})
@@ -25,19 +28,9 @@ jobs:
       - working-directory: packages/dm_core
         run: dart test --reporter=expanded
 
-  app:
-    name: Uygulama (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            target: macos
-            artifact: app/build/macos/Build/Products/Release/download_manager.app
-          - os: windows-latest
-            target: windows
-            artifact: app/build/windows/x64/runner/Release
+  app-macos:
+    name: Uygulama (macos)
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -50,11 +43,136 @@ jobs:
       - working-directory: app
         run: flutter test
       - working-directory: app
-        run: flutter build ${{ matrix.target }} --release
+        run: flutter build macos --release
+      # ditto, .app paketini ve framework bağlantılarını bozmadan sıkıştırır.
+      - name: Paketle
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent \
+            app/build/macos/Build/Products/Release/download_manager.app \
+            dist/IndirmeYoneticisi-macos.zip
+      - name: Paketi aç ve çalıştır
+        run: |
+          mkdir -p smoke
+          ditto -x -k dist/IndirmeYoneticisi-macos.zip smoke
+          codesign --verify --deep --strict smoke/download_manager.app
+          lipo -archs smoke/download_manager.app/Contents/MacOS/download_manager
+          smoke/download_manager.app/Contents/MacOS/download_manager &
+          pid=$!
+          for i in $(seq 1 30); do
+            nc -z 127.0.0.1 38765 && break
+            kill -0 "$pid" || { echo "Uygulama kapandı"; exit 1; }
+            sleep 1
+          done
+          nc -z 127.0.0.1 38765
+          sleep 5
+          kill -0 "$pid"
+          kill "$pid"
       - uses: actions/upload-artifact@v4
         with:
-          name: download-manager-${{ matrix.target }}
-          path: ${{ matrix.artifact }}
+          name: download-manager-macos
+          path: dist/IndirmeYoneticisi-macos.zip
+
+  app-windows:
+    name: Uygulama (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - working-directory: app
+        run: flutter pub get
+      - working-directory: app
+        run: flutter analyze
+      - working-directory: app
+        run: flutter test
+      - working-directory: app
+        run: flutter build windows --release
+      # Flutter derlemesi VC++ çalışma zamanını içermez; temiz Windows'ta açılmaması için eklenir.
+      - name: VC++ çalışma zamanını ekle
+        shell: pwsh
+        run: |
+          $release = 'app/build/windows/x64/runner/Release'
+          foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
+            Copy-Item "$env:WINDIR/System32/$dll" $release
+          }
+      - name: Eksik bağımlılık olmadığını doğrula
+        shell: pwsh
+        run: |
+          $release = 'app/build/windows/x64/runner/Release'
+          $vs = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -property installationPath
+          $dumpbin = Get-ChildItem "$vs/VC/Tools/MSVC" -Recurse -Filter dumpbin.exe |
+            Where-Object FullName -Match 'Hostx64\\x64' | Select-Object -First 1
+          $bundled = Get-ChildItem $release -File | ForEach-Object { $_.Name.ToLower() }
+          $missing = @()
+          foreach ($file in Get-ChildItem $release -File -Include *.exe, *.dll -Recurse) {
+            $deps = & $dumpbin.FullName /dependents $file.FullName |
+              Where-Object { $_ -match '^\s+\S+\.dll\s*$' } | ForEach-Object { $_.Trim().ToLower() }
+            Write-Output "$($file.Name): $($deps -join ', ')"
+            foreach ($dep in $deps) {
+              if ($dep -match '^(msvcp|vcruntime|concrt|vccorlib)' -and $bundled -notcontains $dep) {
+                $missing += "$($file.Name) -> $dep"
+              }
+            }
+          }
+          if ($missing) { throw "Pakette eksik: $($missing -join '; ')" }
+      - name: Paketle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist, staging | Out-Null
+          Copy-Item app/build/windows/x64/runner/Release staging/IndirmeYoneticisi -Recurse
+          Compress-Archive staging/IndirmeYoneticisi dist/IndirmeYoneticisi-windows.zip
+      - name: Paketi aç ve çalıştır
+        shell: pwsh
+        run: |
+          Expand-Archive dist/IndirmeYoneticisi-windows.zip smoke
+          $app = Start-Process smoke/IndirmeYoneticisi/download_manager.exe -PassThru
+          $listening = $false
+          foreach ($i in 1..30) {
+            if ($app.HasExited) { throw "Uygulama kapandı, çıkış kodu $($app.ExitCode)" }
+            try {
+              [Net.Sockets.TcpClient]::new('127.0.0.1', 38765).Dispose()
+              $listening = $true
+              break
+            } catch { Start-Sleep 1 }
+          }
+          if (-not $listening) { throw 'Yakalama sunucusu açılmadı' }
+          Start-Sleep 5
+          if ($app.HasExited) { throw "Uygulama kapandı, çıkış kodu $($app.ExitCode)" }
+          Stop-Process $app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: download-manager-windows
+          path: dist/IndirmeYoneticisi-windows.zip
+
+  # Kurulum belgesindeki winget yolunu dener. Dış servislere bağlı olduğu için sürümü engellemez.
+  media-windows:
+    name: Windows video araçları
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: winget ile kur
+        shell: pwsh
+        run: |
+          winget install --id yt-dlp.yt-dlp -e --disable-interactivity --accept-source-agreements --accept-package-agreements
+          foreach ($dir in "$env:LOCALAPPDATA/Microsoft/WinGet/Links", "$env:ProgramFiles/WinGet/Links") {
+            Write-Output "== $dir"
+            if (Test-Path $dir) { Get-ChildItem $dir | Select-Object -ExpandProperty Name }
+          }
+      - working-directory: packages/dm_core
+        run: dart pub get
+      - name: MP3'e dönüştür
+        working-directory: packages/dm_core
+        shell: pwsh
+        run: |
+          dart run bin/cli.dart https://www.w3schools.com/html/mov_bbb.mp4 --media mp3 -o out
+          if ($LASTEXITCODE -ne 0) { throw "CLI çıkış kodu $LASTEXITCODE" }
+          Get-ChildItem out -Recurse | Select-Object FullName, Length
 
   extension:
     name: Chrome eklentisi
@@ -66,3 +184,32 @@ jobs:
           node-version: 22
       - working-directory: extension
         run: npm test
+      - name: Paketle
+        run: |
+          mkdir -p dist
+          (cd extension && zip -r ../dist/IndirmeYoneticisi-chrome-eklentisi.zip . -x 'test/*' 'package.json' 'node_modules/*')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: download-manager-extension
+          path: dist/IndirmeYoneticisi-chrome-eklentisi.zip
+
+  release:
+    name: Sürümü yayınla
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [core, app-macos, app-windows, extension]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Sürüm oluştur
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.zip \
+            --title "İndirme Yöneticisi $GITHUB_REF_NAME" \
+            --notes-file .github/release-notes.md
