@@ -46,6 +46,9 @@ class DownloadFile {
 
   File? _file;
 
+  Future<File?>? _fileReady;
+  Future<RandomAccessFile>? _writeOpening;
+  Future<RandomAccessFile>? _readOpening;
   RandomAccessFile? _writeAccess;
 
   RandomAccessFile? _readAccess;
@@ -289,6 +292,12 @@ class DownloadFile {
     if (isVirtualFile) {
       return null;
     }
+    // Yerel yama: eşzamanlı çağrılar aynı işlemi bekler. Aksi halde biri dosyayı
+    // `FileMode.write` ile açarken diğerinin yazdığı veri silinebilirdi.
+    return _fileReady ??= _createIfMissing();
+  }
+
+  Future<File?> _createIfMissing() async {
     _file ??= File(filePath);
     var exists = await _file?.exists();
     if (exists != null && !exists) {
@@ -319,11 +328,15 @@ class DownloadFile {
     var file = await _getOrCreateFile();
     RandomAccessFile? access;
     if (type == FileRequestType.write) {
-      _writeAccess ??= await file?.open(mode: FileMode.writeOnlyAppend);
+      // Yerel yama: tek açma. `??= await` eşzamanlı çağrılarda her seferinde yeni tanıtıcı
+      // açıp öncekileri sızdırıyordu; Windows dosyayı bu yüzden kilitli tutuyordu.
+      _writeOpening ??= file!.open(mode: FileMode.writeOnlyAppend);
+      _writeAccess = await _writeOpening;
       access = _writeAccess;
       if (_closed) await _closeHandles();
     } else {
-      _readAccess ??= await file?.open(mode: FileMode.read);
+      _readOpening ??= file!.open(mode: FileMode.read);
+      _readAccess = await _readOpening;
       access = _readAccess;
       if (_closed) await _closeHandles();
     }
@@ -340,6 +353,8 @@ class DownloadFile {
     final read = _readAccess;
     _writeAccess = null;
     _readAccess = null;
+    _writeOpening = null;
+    _readOpening = null;
     await write?.close();
     await read?.close();
     throw FileSystemException('File is closed', filePath);
@@ -363,6 +378,9 @@ class DownloadFile {
     } finally {
       _writeAccess = null;
       _readAccess = null;
+      _writeOpening = null;
+      _readOpening = null;
+      _fileReady = null;
       _streamSubscription = null;
       _streamController = null;
       _bytesRequestSubscription = null;
@@ -386,6 +404,9 @@ class DownloadFile {
     } finally {
       _writeAccess = null;
       _readAccess = null;
+      _writeOpening = null;
+      _readOpening = null;
+      _fileReady = null;
       _streamSubscription = null;
       _streamController = null;
       _closed = false;
@@ -433,6 +454,7 @@ class DownloadFile {
     await prepareForMove();
     filePath = newPath;
     _file = File(newPath);
+    _fileReady = null;
     _closed = false;
   }
 

@@ -16,3 +16,4 @@ Kaynak: https://github.com/atlet99/dtorrent_task_v2 (BSD 3-Clause, `LICENSE`).
 10. Metadata önbelleği geçici klasöre yazılmaz; indirilen torrentlerin kaydı iz bırakmaz.
 11. Kapalı dosya yeniden açılmaz, `close()` açık tanıtıcıyı daima kapatır (Windows'ta dosya kilitli kalıyordu).
 12. LSD gönderimi sınırlı denenir ve LSD hataları başlatmayı engellemez (çoklu yayın engelli ağda görev hiç başlamıyordu).
+13. Dosya açma ve oluşturma tek seferlik yapıldı: eşzamanlı `??= await` tanıtıcı sızdırıyor (Windows'ta dosya kilitli kalıyordu) ve `FileMode.write` yazılmış veriyi silebiliyordu.
