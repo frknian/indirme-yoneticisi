@@ -79,6 +79,26 @@ final class InvalidTorrentException extends DownloadException {
   const InvalidTorrentException(super.message, {super.cause});
 }
 
+/// yt-dlp veya ffmpeg bulunamadı.
+final class MediaToolMissingException extends DownloadException {
+  const MediaToolMissingException(super.message);
+}
+
+/// İçerik DRM ile korunuyor; uygulama bunu aşmaya çalışmaz.
+final class MediaDrmException extends DownloadException {
+  const MediaDrmException(super.message);
+}
+
+/// Video indirilemedi.
+final class MediaDownloadException extends DownloadException {
+  const MediaDownloadException(super.message);
+}
+
+/// Adres indirilebilir dosya değil, web sayfası döndürdü.
+final class NotAFileException extends DownloadException {
+  const NotAFileException(super.message);
+}
+
 /// Beklenmeyen, sınıflandırılamayan hata.
 final class UnexpectedDownloadException extends DownloadException {
   const UnexpectedDownloadException(super.message, {super.cause});

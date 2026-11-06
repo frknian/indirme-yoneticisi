@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dm_core/dm_core.dart';
@@ -23,12 +24,39 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
   final _name = TextEditingController();
   final _sha256 = TextEditingController();
   bool _advanced = false;
+  bool _mediaMode = false;
+  bool _wholePlaylist = false;
+  bool _busy = false;
+  late MediaFormat _format;
+  int? _maxHeight;
 
   @override
   void initState() {
     super.initState();
     _url = TextEditingController(text: widget.initialUrl ?? '');
+    final settings = context.read<AppController>().settings;
+    _format = settings.mediaFormat;
+    _maxHeight = settings.mediaMaxHeight;
+    if (_shouldEnableMedia()) _enableMedia();
+    _url.addListener(_detectMedia);
     if (widget.initialUrl == null) _fillFromClipboard();
+  }
+
+  /// Video sitesi bağlantısı yapıştırılınca Video/Ses kipine geçer.
+  void _detectMedia() {
+    if (_shouldEnableMedia()) setState(_enableMedia);
+  }
+
+  bool _shouldEnableMedia() {
+    if (!isMediaSupported || _mediaMode) return false;
+    final uri = Uri.tryParse(_url.text.trim());
+    return uri != null && isLikelyMediaUrl(uri);
+  }
+
+  void _enableMedia() {
+    final uri = Uri.parse(_url.text.trim());
+    _mediaMode = true;
+    _wholePlaylist = uri.queryParameters.containsKey('list');
   }
 
   /// Panoda bağlantı varsa adres alanına önerir.
@@ -41,6 +69,7 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
 
   @override
   void dispose() {
+    _url.removeListener(_detectMedia);
     _url.dispose();
     _name.dispose();
     _sha256.dispose();
@@ -91,16 +120,89 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
     }
   }
 
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    final name = _name.text.trim();
-    final sha = _sha256.text.trim();
-    context.read<AppController>().addDownload(
-      Uri.parse(_url.text.trim()),
-      fileName: name.isEmpty ? null : name,
-      expectedSha256: sha.isEmpty ? null : sha,
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate() || _busy) return;
+    final controller = context.read<AppController>();
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final url = Uri.parse(_url.text.trim());
+    if (!_mediaMode) {
+      final name = _name.text.trim();
+      final sha = _sha256.text.trim();
+      controller.addDownload(
+        url,
+        fileName: name.isEmpty ? null : name,
+        expectedSha256: sha.isEmpty ? null : sha,
+      );
+      navigator.pop();
+      return;
+    }
+    final media = MediaOptions(format: _format, maxHeight: _maxHeight);
+    unawaited(
+      controller.updateSettings((s) {
+        s.mediaFormat = _format;
+        s.mediaMaxHeight = _maxHeight;
+      }),
     );
-    Navigator.of(context).pop();
+    if (!_wholePlaylist) {
+      controller.addDownload(url, media: media);
+      navigator.pop();
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final count = await controller.addMediaPlaylist(url, media);
+      navigator.pop();
+      messenger.showSnackBar(SnackBar(content: Text('$count video eklendi')));
+    } on DownloadException catch (e) {
+      if (mounted) setState(() => _busy = false);
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  Widget _mediaFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        DropdownButtonFormField<MediaFormat>(
+          initialValue: _format,
+          decoration: const InputDecoration(labelText: 'Biçim'),
+          items: const [
+            DropdownMenuItem(
+              value: MediaFormat.mp4,
+              child: Text('MP4 (video)'),
+            ),
+            DropdownMenuItem(
+              value: MediaFormat.mp3,
+              child: Text('MP3 (yalnızca ses)'),
+            ),
+          ],
+          onChanged: (value) => setState(() => _format = value!),
+        ),
+        if (_format == MediaFormat.mp4) ...[
+          const SizedBox(height: 12),
+          DropdownButtonFormField<int?>(
+            initialValue: _maxHeight,
+            decoration: const InputDecoration(labelText: 'Kalite'),
+            items: const [
+              DropdownMenuItem(child: Text('En iyi')),
+              DropdownMenuItem(value: 1080, child: Text('1080p')),
+              DropdownMenuItem(value: 720, child: Text('720p')),
+              DropdownMenuItem(value: 480, child: Text('480p')),
+            ],
+            onChanged: (value) => setState(() => _maxHeight = value),
+          ),
+        ],
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Oynatma listesinin tamamı'),
+          subtitle: const Text('Her video ayrı indirme olarak eklenir.'),
+          value: _wholePlaylist,
+          onChanged: (value) => setState(() => _wholePlaylist = value),
+        ),
+      ],
+    );
   }
 
   @override
@@ -115,6 +217,18 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (isMediaSupported) ...[
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: false, label: Text('Dosya')),
+                      ButtonSegment(value: true, label: Text('Video / Ses')),
+                    ],
+                    selected: {_mediaMode},
+                    onSelectionChanged: (value) =>
+                        setState(() => _mediaMode = value.single),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 TextFormField(
                   controller: _url,
                   autofocus: true,
@@ -125,18 +239,22 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
                     hintText: 'https://ornek.com/dosya.zip',
                   ),
                   validator: _validateUrl,
-                  onFieldSubmitted: (_) => _submit(),
+                  onFieldSubmitted: (_) => unawaited(_submit()),
                 ),
+                if (_mediaMode) _mediaFields(),
                 const SizedBox(height: 8),
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: TextButton.icon(
-                    onPressed: _pickTorrent,
-                    icon: const Icon(Icons.file_open_outlined),
-                    label: const Text('Torrent dosyası seç'),
+                if (!_mediaMode)
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton.icon(
+                      onPressed: _pickTorrent,
+                      icon: const Icon(Icons.file_open_outlined),
+                      label: const Text('Torrent dosyası seç'),
+                    ),
                   ),
-                ),
-                if (!_advanced)
+                if (_mediaMode)
+                  const SizedBox.shrink()
+                else if (!_advanced)
                   Align(
                     alignment: AlignmentDirectional.centerStart,
                     child: TextButton(
@@ -170,7 +288,10 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Vazgeç'),
         ),
-        FilledButton(onPressed: _submit, child: const Text('İndir')),
+        FilledButton(
+          onPressed: _busy ? null : () => unawaited(_submit()),
+          child: Text(_busy ? 'Liste okunuyor…' : 'İndir'),
+        ),
       ],
     );
   }

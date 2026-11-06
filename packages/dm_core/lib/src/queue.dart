@@ -5,6 +5,7 @@ import 'dart:io';
 import 'downloader.dart';
 import 'exceptions.dart';
 import 'file_ops.dart';
+import 'media.dart';
 import 'metadata_store.dart';
 import 'models.dart';
 import 'torrent_worker.dart';
@@ -175,6 +176,7 @@ class DownloadQueue {
       DownloadState.probing ||
       DownloadState.downloading ||
       DownloadState.verifying ||
+      DownloadState.converting ||
       DownloadState.queued =>
         DownloadState.queued,
       _ => saved,
@@ -191,6 +193,9 @@ class DownloadQueue {
             .map((k, v) => MapEntry(k, v as String)),
         expectedSha256: json['expectedSha256'] as String?,
         computeSha256: json['computeSha256'] as bool? ?? false,
+        media: json['media'] is Map<String, dynamic>
+            ? MediaOptions.fromJson(json['media'] as Map<String, dynamic>)
+            : null,
       ),
       tuning: tuning,
       id: json['id'] as String?,
@@ -310,6 +315,7 @@ class DownloadQueue {
       'headers': stripSensitiveHeaders(request.headers),
       'expectedSha256': request.expectedSha256,
       'computeSha256': request.computeSha256,
+      'media': request.media?.toJson(),
       'state': _resumeOnRestore.contains(task.id)
           ? DownloadState.queued.name
           : progress.state.name,

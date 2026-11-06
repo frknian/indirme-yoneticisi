@@ -1,6 +1,6 @@
 # İndirme Yöneticisi
 
-Parçalı, duraklatılabilir ve çökmeden kurtulabilen, torrent de indirebilen indirme yöneticisi. Flutter ile
+Parçalı, duraklatılabilir ve çökmeden kurtulabilen; torrent, video ve oynatma listesi de indirebilen indirme yöneticisi. Flutter ile
 macOS ve Windows'ta, ayrıca Linux ve Android'de tek kod tabanından çalışmak üzere yazıldı. Sunucu `Range`
 destekliyorsa dosyayı en fazla 16 parçaya böler ve paralel indirir.
 
@@ -29,20 +29,26 @@ Windows'ta. Hazır paket yoktur.
    brew install --cask flutter
    ```
 
-3. Eksik var mı kontrol edin. **Xcode** satırında hata olmamalı; Android ve Chrome uyarıları
+3. Video indirme için `yt-dlp` ve `ffmpeg` kurun:
+
+   ```bash
+   brew install yt-dlp ffmpeg
+   ```
+
+4. Eksik var mı kontrol edin. **Xcode** satırında hata olmamalı; Android ve Chrome uyarıları
    masaüstü derlemesini etkilemez:
 
    ```bash
    flutter doctor
    ```
 
-4. Depo klasöründe uygulamayı derleyin:
+5. Depo klasöründe uygulamayı derleyin:
 
    ```bash
    cd app && flutter pub get && flutter build macos --release
    ```
 
-5. Uygulamayı Applications klasörüne kopyalayıp açın:
+6. Uygulamayı Applications klasörüne kopyalayıp açın:
 
    ```bash
    cp -R build/macos/Build/Products/Release/download_manager.app /Applications/
@@ -83,26 +89,32 @@ Gatekeeper uyarı verir; uygulamaya sağ tıklayıp **Aç**'ı seçmek gerekir.
    [Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";C:\dev\flutter\bin", "User")
    ```
 
-5. **Geliştirici Modu**nu açın. Flutter eklentileri sembolik bağlantı kullandığı için bu olmadan
+5. Video indirme için `yt-dlp` kurun; `ffmpeg` de onunla birlikte gelir:
+
+   ```powershell
+   winget install --id yt-dlp.yt-dlp -e
+   ```
+
+6. **Geliştirici Modu**nu açın. Flutter eklentileri sembolik bağlantı kullandığı için bu olmadan
    derleme durur. Açılan ayarlar sayfasında seçeneği etkinleştirin:
 
    ```powershell
    start ms-settings:developers
    ```
 
-6. Eksik var mı kontrol edin. **Visual Studio** satırında hata olmamalı:
+7. Eksik var mı kontrol edin. **Visual Studio** satırında hata olmamalı:
 
    ```powershell
    flutter doctor
    ```
 
-7. Depo klasöründe uygulamayı derleyin:
+8. Depo klasöründe uygulamayı derleyin:
 
    ```powershell
    cd app; flutter pub get; flutter build windows --release
    ```
 
-8. Uygulamayı açın:
+9. Uygulamayı açın:
 
    ```powershell
    .\build\windows\x64\runner\Release\download_manager.exe
@@ -144,6 +156,31 @@ vermezseniz indirme yine çalışır, yalnızca bağlanılabilen eş sayısı az
 - `.torrent` ile biten adresler, ya da **Torrent dosyası seç** ile seçilen bir dosya
 
 Android'de paylaş menüsü ve magnet bağlantıları da aynı pencereyi açar.
+
+### Video ve ses
+
+Video sitesi bağlantısı yapıştırınca pencere **Video / Ses** kipine geçer. Masaüstünde çalışır.
+
+- **Biçim:** MP4 (video) veya MP3 (yalnızca ses). Kaynak başka biçimdeyse `ffmpeg` dönüştürür.
+- **Kalite:** en iyi, 1080p, 720p veya 480p.
+- **Oynatma listesi:** **Oynatma listesinin tamamı** açıkken her video ayrı indirme olarak eklenir ve
+  listenin adını taşıyan klasöre iner. Duraklatma ve iptal her video için ayrıdır.
+- **Desteklenen siteler:** YouTube, Vimeo ve `yt-dlp`'nin desteklediği diğer siteler, ayrıca doğrudan
+  `.m3u8` bağlantıları.
+
+**Dizi ve filmler:** korumasız yayınlar indirilebilir. Netflix, Disney+, Prime Video, BluTV ve Exxen
+gibi DRM korumalı platformlar açık bir hatayla reddedilir; uygulama DRM'i aşmaz. Telif hakkı ve sitenin
+kullanım koşullarına uymak kullanıcının sorumluluğundadır.
+
+Siteler değiştikçe `yt-dlp` eskir. Bir site çalışmayı bırakırsa önce güncelleyin:
+
+```bash
+brew upgrade yt-dlp
+```
+
+```powershell
+winget upgrade --id yt-dlp.yt-dlp -e
+```
 
 ### Torrent
 
@@ -231,6 +268,8 @@ Android emülatöründen bu sunucuya `http://10.0.2.2:8099/test.bin` ile erişil
 - **Torrent:** motor kendi isolate'ında çalışır ve parçaları SHA-1 ile doğrular. Torrent içindeki `../`
   gibi yollar, sembolik bağlantılar ve çalıştırma izinleri reddedilir. İlerleme 45 saniye durursa motor
   yeniden başlatılır.
+- **Video:** `yt-dlp` ayrı süreç olarak çalışır, yarım dosyalar görev başına geçici klasörde tutulur. Çıktısı
+  aynı ilerleme akışına çevrilir. Bağlantı ayarları (hız sınırı, proxy, zaman aşımı) burada da geçerlidir.
 - **Tarayıcı bağlantısı:** yalnızca `127.0.0.1` dinlenir. İstekler `Host`, `Origin` ve eşleştirme
   anahtarından geçer, böylece web siteleri indirme başlatamaz.
 
@@ -239,6 +278,9 @@ Kararlar için [DECISIONS.md](DECISIONS.md), elle denenecekler için
 
 ## Bilinen eksikler
 
+- Video indirme Android'de yoktur, çünkü `yt-dlp` orada çalışmaz.
+- Oturum gerektiren videolar indirilemez; çerezler aktarılmaz.
+- Bir sayfada birden çok video varsa yalnızca ilki iner.
 - Hız sınırı ve HTTP proxy torrent bağlantılarına uygulanmaz; proxy kullanmanız IP'nizi eşlerden gizlemez.
 - Torrent motoru az bilinen bir kütüphanedir ve birçok hatası elle düzeltildi. Uzun süreli kullanımda
   sorun çıkarsa bir sonraki aday `libtorrent`'tir. Gerçek ağda yalnızca Debian torrenti ile denendi.

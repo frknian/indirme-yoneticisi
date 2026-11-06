@@ -69,3 +69,14 @@ Uygulamada macOS ve Android'de gerçek magnet başlatıldı, ama bitişine kadar
 - [ ] Ayarlar: UPnP açıkken modemde kayıt oluşmalı, kapalıyken oluşmamalı.
 - [ ] Ayarlar: gelen bağlantı portu ve eş sınırı değişikliği yeni indirmede geçerli olmalı.
 - [ ] Eklenti: bir magnet bağlantısına sağ tıklayıp uygulamaya gönderin.
+
+## Video ve ses
+
+macOS'ta gerçek YouTube videosuyla MP4, MP3 ve oynatma listesi doğrulandı. CI yalnızca sahte `yt-dlp` ile test eder.
+
+- [ ] Windows: `winget` kurulumundan sonra uygulama `yt-dlp`'yi bulmalı (**Ayarlar > Video**).
+- [ ] Windows: gerçek bir video MP4 ve MP3 olarak inmeli; Türkçe başlıklı dosya adı bozulmamalı.
+- [ ] Windows: indirme sırasında duraklat ve iptal; `ffmpeg` süreci geride kalmamalı.
+- [ ] Araçları kaldırıp **Ayarlar > Video** bölümünde kurulum komutunun göründüğünü kontrol edin.
+- [ ] Arayüzden oynatma listesi ekleyin; videolar liste klasörüne inmeli.
+- [ ] Uzun bir videoda dönüştürme sırasında "Dönüştürülüyor" durumu görünmeli.

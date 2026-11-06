@@ -52,6 +52,13 @@ class DownloadDetail extends StatelessWidget {
             '${p.peers} eş, ${p.seeds} kaynak  •  '
                 'gönderim ${formatBytes(p.uploadBytesPerSecond.round())}/sn',
           ),
+        if (task.request.media case final media?)
+          _Field(
+            'Biçim',
+            media.format == MediaFormat.mp3
+                ? 'MP3 (yalnızca ses)'
+                : 'MP4${media.maxHeight == null ? '' : ', en fazla ${media.maxHeight}p'}',
+          ),
         _Field('Adres', task.request.url.toString(), copyable: true),
         if (p.filePath != null)
           if (p.state == DownloadState.completed &&

@@ -1,4 +1,5 @@
 import 'exceptions.dart';
+import 'media.dart';
 import 'retry.dart';
 
 /// Bir indirmenin yaşam döngüsü.
@@ -9,13 +10,19 @@ enum DownloadState {
   downloading,
   paused,
   verifying,
+
+  /// ffmpeg MP4 veya MP3'e dönüştürüyor.
+  converting,
   completed,
   failed,
   canceled;
 
   /// Çalışan bir isolate/ağ işlemi var mı?
   bool get isActive =>
-      this == probing || this == downloading || this == verifying;
+      this == probing ||
+      this == downloading ||
+      this == verifying ||
+      this == converting;
 
   /// Bu durumdan kendiliğinden çıkılmaz.
   bool get isTerminal => this == completed || this == canceled;
@@ -35,6 +42,7 @@ class DownloadRequest {
     this.headers = const {},
     this.expectedSha256,
     this.computeSha256 = false,
+    this.media,
   }) : segments = segments.clamp(1, maxSegments);
 
   final Uri url;
@@ -48,6 +56,9 @@ class DownloadRequest {
 
   /// Beklenen değer verilmese bile özet hesaplansın mı?
   final bool computeSha256;
+
+  /// Doluysa adres yt-dlp ile video veya ses olarak indirilir.
+  final MediaOptions? media;
 }
 
 /// Motorun ince ayarları. Varsayılanlar gerçek kullanım içindir; testler kısaltır.
@@ -65,6 +76,8 @@ class DownloadTuning {
     this.maxBytesPerSecond = 0,
     this.proxy,
     this.torrent = const TorrentSettings(),
+    this.ytDlpPath,
+    this.ffmpegPath,
   });
 
   final RetryPolicy retry;
@@ -91,6 +104,10 @@ class DownloadTuning {
 
   /// Torrent bağlantı ayarları.
   final TorrentSettings torrent;
+
+  /// Boşsa araçlar PATH ve paket yöneticisi klasörlerinde aranır.
+  final String? ytDlpPath;
+  final String? ffmpegPath;
 }
 
 /// Torrent motorunun bağlantı ayarları.
@@ -174,6 +191,7 @@ class DownloadProgress {
     this.resumable = true,
     this.restarts = 0,
     this.isTorrent = false,
+    this.isMedia = false,
     this.peers = 0,
     this.seeds = 0,
     this.uploadBytesPerSecond = 0,
@@ -199,6 +217,7 @@ class DownloadProgress {
   /// Sunucudaki dosya değiştiği için baştan başlama sayısı.
   final int restarts;
   final bool isTorrent;
+  final bool isMedia;
 
   /// Bağlı eş ve kaynak sayısı (yalnızca torrent).
   final int peers;
@@ -228,6 +247,7 @@ class DownloadProgress {
     bool? resumable,
     int? restarts,
     bool? isTorrent,
+    bool? isMedia,
     int? peers,
     int? seeds,
     double? uploadBytesPerSecond,
@@ -248,6 +268,7 @@ class DownloadProgress {
         resumable: resumable ?? this.resumable,
         restarts: restarts ?? this.restarts,
         isTorrent: isTorrent ?? this.isTorrent,
+        isMedia: isMedia ?? this.isMedia,
         peers: peers ?? this.peers,
         seeds: seeds ?? this.seeds,
         uploadBytesPerSecond: uploadBytesPerSecond ?? this.uploadBytesPerSecond,

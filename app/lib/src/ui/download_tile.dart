@@ -64,7 +64,8 @@ class DownloadTile extends StatelessWidget {
         color: colors.tertiary,
       ),
       DownloadState.probing ||
-      DownloadState.verifying => const LinearProgressIndicator(),
+      DownloadState.verifying ||
+      DownloadState.converting => const LinearProgressIndicator(),
       DownloadState.downloading => LinearProgressIndicator(
         value: progress.fraction,
       ),

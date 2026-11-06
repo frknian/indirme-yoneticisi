@@ -36,3 +36,8 @@
 - **Torrent klasör düzeni:** indirme geçici `<ad>` klasöründe yapılır, bitince içerik son adına taşınır; var olan dosyanın üzerine yazılmaz.
 - **Takılma bekçisi:** son parçalarda görülen takılmaya karşı 45 sn ilerleme yoksa motor yeniden başlatılır.
 - **Seed:** tamamlanınca bağlantılar kapanır; pil ve veri kullanımını kullanıcıya sormadan sürdürmemek için.
+- **Video motoru:** `yt-dlp` + `ffmpeg`; siteler sürekli değiştiği için kendi çıkarıcımızı yazmak yerine bu araçlar kullanılır. `CLAUDE.md` 9. adım kullanıcının isteğiyle kapsama alındı.
+- **Araçların kurulumu:** uygulama paketlemez ve indirmez; `brew`/`winget` ile kurulur, uygulama PATH ve paket yöneticisi klasörlerinde arar. Sık güncelleme gerektiği ve uygulamanın internetten indirdiği programı çalıştırmaması için.
+- **DRM:** aşılmaz. Bilinen ücretli platformlar araç çalıştırılmadan reddedilir, çünkü yt-dlp'nin genel yöntemi sayfadaki fragmanı indirip başarı bildiriyordu.
+- **Oynatma listesi:** her video kuyruğa ayrı görev olarak eklenir; eşzamanlılık, duraklatma ve hata izolasyonu mevcut kuyruktan gelir.
+- **Web sayfası yanıtı:** `Content-Type: text/html` dönen dosya indirmesi hata sayılır; sayfayı kaydedip "tamamlandı" demek yanıltıcıydı.

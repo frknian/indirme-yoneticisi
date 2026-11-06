@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
@@ -10,6 +11,7 @@ import 'exceptions.dart';
 import 'file_name.dart';
 import 'file_ops.dart';
 import 'hash_verify.dart';
+import 'media.dart';
 import 'metadata_store.dart';
 import 'models.dart';
 import 'probe.dart';
@@ -166,6 +168,10 @@ class DownloadTask {
   Future<void> _run() async {
     _meter.reset();
     try {
+      if (request.media != null) {
+        await _runMedia(request.media!);
+        return;
+      }
       if (isTorrentUri(request.url)) {
         await _runTorrent();
         return;
@@ -177,6 +183,13 @@ class DownloadTask {
         clearEta: true,
       ));
       var probe = await _probeWithRetry();
+      // Web sayfası kaydedip "tamamlandı" demek yanıltıcı olurdu.
+      if (probe.contentType == 'text/html') {
+        throw const NotAFileException(
+          'Bu adres dosya değil, web sayfası. Video ise Video/Ses seçeneğiyle '
+          'indirin.',
+        );
+      }
       var meta = await _prepare(probe);
 
       while (true) {
@@ -230,6 +243,144 @@ class DownloadTask {
         activeConnections: 0,
       ));
     }
+  }
+
+  /// yt-dlp'nin yarım dosyaları; görev kimliğine bağlı olduğu için devam ederken
+  /// aynı klasör kullanılır, iptalde başka hiçbir dosyaya dokunmadan silinir.
+  String get _mediaTempDir => p.join(request.directory, '.dm_media_$id');
+
+  /// Devam edecek yarım dosya yoksa geçici klasör kullanıcının klasöründe kalmasın.
+  Future<void> _deleteEmptyMediaTemp() async {
+    final temp = Directory(_mediaTempDir);
+    try {
+      if (await temp.exists() && await temp.list().isEmpty) {
+        await temp.delete();
+      }
+    } on FileSystemException {
+      // Hata asıl indirme sorununu gizlemesin; klasör iptal edilince de silinir.
+    }
+  }
+
+  Future<void> _runMedia(MediaOptions options) async {
+    _emit(_progress.copyWith(
+      state: DownloadState.probing,
+      isMedia: true,
+      resumable: true,
+      clearError: true,
+      bytesPerSecond: 0,
+      clearEta: true,
+    ));
+    rejectDrmPlatform(request.url);
+    final tools = locateMediaTools(
+      ytDlpPath: tuning.ytDlpPath,
+      ffmpegPath: tuning.ffmpegPath,
+    );
+    requireMediaTools(tools);
+    await Directory(request.directory).create(recursive: true);
+    await Directory(_mediaTempDir).create(recursive: true);
+
+    final Process process;
+    try {
+      process = await Process.start(
+        tools.ytDlp!,
+        buildMediaDownloadArgs(
+          url: request.url,
+          options: options,
+          homeDir: request.directory,
+          tempDir: _mediaTempDir,
+          ffmpeg: tools.ffmpeg,
+          proxy: tuning.proxy,
+          maxBytesPerSecond: tuning.maxBytesPerSecond,
+          connectionTimeoutSeconds: tuning.connectionTimeout.inSeconds,
+          retries: tuning.retry.maxAttempts,
+        ),
+        environment: mediaProcessEnvironment,
+      );
+    } on ProcessException catch (e) {
+      throw MediaToolMissingException('yt-dlp çalıştırılamadı: ${e.message}');
+    }
+
+    unawaited(_stopSignal.future.then((_) => stopMediaProcess(process)));
+
+    // Video ve ses ayrı akış olarak iner: biten akışlar toplama eklenir.
+    var finishedBytes = 0;
+    var currentBytes = 0;
+    var currentTotal = 0;
+    String? path;
+    final stdoutDone = process.stdout
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .transform(const LineSplitter())
+        .forEach((line) {
+      switch (parseMediaLine(line)) {
+        case MediaTitleEvent(:final title):
+          _emit(_progress.copyWith(fileName: title));
+        case MediaFileEvent(path: final file):
+          path = file;
+        case MediaConvertingEvent():
+          _emit(_progress.copyWith(
+            state: DownloadState.converting,
+            bytesPerSecond: 0,
+            clearEta: true,
+          ));
+        case final MediaProgressEvent event:
+          if (event.finished) {
+            finishedBytes += event.total ?? event.downloaded ?? currentBytes;
+            currentBytes = 0;
+            currentTotal = 0;
+          } else {
+            currentBytes = event.downloaded ?? currentBytes;
+            currentTotal = event.total ?? currentTotal;
+          }
+          final total = finishedBytes + currentTotal;
+          _emit(_progress.copyWith(
+            state: DownloadState.downloading,
+            downloadedBytes: finishedBytes + currentBytes,
+            totalBytes: total > 0 ? total : null,
+            bytesPerSecond: event.bytesPerSecond ?? 0,
+            eta: event.etaSeconds == null
+                ? null
+                : Duration(seconds: event.etaSeconds!),
+            clearEta: event.etaSeconds == null,
+            activeConnections: 1,
+          ));
+        case null:
+          break;
+      }
+    });
+    final stderrBuffer = StringBuffer();
+    final stderrDone = process.stderr
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .forEach(stderrBuffer.write);
+    final exitCode = await process.exitCode;
+    await Future.wait([stdoutDone, stderrDone]);
+
+    if (_stopSignal.isCompleted) throw const _StopSignal();
+    if (exitCode != 0) {
+      await _deleteEmptyMediaTemp();
+      throw classifyMediaError(stderrBuffer.toString(), exitCode);
+    }
+    final file = path;
+    if (file == null) {
+      throw const MediaDownloadException('yt-dlp dosya yolunu bildirmedi');
+    }
+    try {
+      await deleteTorrentFolder(request.directory, _mediaTempDir);
+    } on DownloadException {
+      // Boş kalan geçici klasör indirilen dosyayı etkilemez.
+    }
+    final size = await File(file).length();
+    _targetPath = file;
+    _emit(_progress.copyWith(
+      state: DownloadState.completed,
+      totalBytes: size,
+      downloadedBytes: size,
+      bytesPerSecond: 0,
+      clearEta: true,
+      activeConnections: 0,
+      fileName: p.basename(file),
+      filePath: file,
+      clearError: true,
+    ));
   }
 
   /// Torrent motorunu kendi isolate'ında çalıştırır ve mesajlarını akışa çevirir.
@@ -380,6 +531,14 @@ class DownloadTask {
   }
 
   Future<void> _deleteArtifacts() async {
+    if (request.media != null) {
+      try {
+        await deleteTorrentFolder(request.directory, _mediaTempDir);
+      } on DownloadException catch (e) {
+        _emit(_progress.copyWith(error: e));
+      }
+      return;
+    }
     final target = _targetPath;
     if (target == null) return;
     if (isTorrentUri(request.url)) {

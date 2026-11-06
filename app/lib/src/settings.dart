@@ -20,6 +20,8 @@ class AppSettings {
     this.torrentListenPort = 0,
     this.torrentDht = true,
     this.torrentPortForwarding = false,
+    this.mediaFormat = MediaFormat.mp4,
+    this.mediaMaxHeight,
   });
 
   factory AppSettings.fromJson(
@@ -50,6 +52,10 @@ class AppSettings {
       ),
       maxAttempts: _clamp(json['maxAttempts'], 1, 20, 8),
       speedLimitKiB: _clamp(json['speedLimitKiB'], 0, 10 * 1024 * 1024, 0),
+      mediaFormat:
+          MediaFormat.values.asNameMap()[json['mediaFormat']] ??
+          MediaFormat.mp4,
+      mediaMaxHeight: json['mediaMaxHeight'] as int?,
       torrentMaxPeers: _clamp(json['torrentMaxPeers'], 10, 300, 100),
       torrentListenPort: _clamp(json['torrentListenPort'], 0, 65535, 0),
       torrentDht: json['torrentDht'] as bool? ?? true,
@@ -86,6 +92,15 @@ class AppSettings {
   /// UPnP ile yönlendiricide port açılsın mı? Varsayılan kapalı.
   bool torrentPortForwarding;
 
+  /// Video/Ses indirmelerinin varsayılanları.
+  MediaFormat mediaFormat;
+
+  /// En yüksek video yüksekliği; null en iyi kalite.
+  int? mediaMaxHeight;
+
+  MediaOptions get mediaOptions =>
+      MediaOptions(format: mediaFormat, maxHeight: mediaMaxHeight);
+
   /// Motorun kullandığı bağlantı ayarları.
   DownloadTuning get tuning => DownloadTuning(
     connectionTimeout: Duration(seconds: connectionTimeoutSeconds),
@@ -111,6 +126,8 @@ class AppSettings {
     'maxAttempts': maxAttempts,
     'speedLimitKiB': speedLimitKiB,
     'proxy': proxy,
+    'mediaFormat': mediaFormat.name,
+    'mediaMaxHeight': mediaMaxHeight,
     'torrentMaxPeers': torrentMaxPeers,
     'torrentListenPort': torrentListenPort,
     'torrentDht': torrentDht,

@@ -23,6 +23,7 @@ String stateLabel(DownloadState state) => switch (state) {
   DownloadState.downloading => 'İndiriliyor',
   DownloadState.paused => 'Duraklatıldı',
   DownloadState.verifying => 'Doğrulanıyor',
+  DownloadState.converting => 'Dönüştürülüyor',
   DownloadState.completed => 'Tamamlandı',
   DownloadState.failed => 'Başarısız',
   DownloadState.canceled => 'İptal edildi',

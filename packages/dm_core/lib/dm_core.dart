@@ -9,6 +9,19 @@ export 'src/exceptions.dart';
 export 'src/file_name.dart' show sanitizeFileName;
 export 'src/file_ops.dart' show retryFileOperation;
 export 'src/hash_verify.dart' show isValidSha256, normalizeSha256, sha256OfFile;
+export 'src/media.dart'
+    show
+        MediaEntry,
+        MediaFormat,
+        MediaInfo,
+        MediaOptions,
+        MediaToolPaths,
+        isLikelyMediaUrl,
+        isMediaSupported,
+        locateMediaTools,
+        mediaInstallHint,
+        mediaToolVersion,
+        probeMedia;
 export 'src/metadata_store.dart'
     show
         DownloadMetadata,

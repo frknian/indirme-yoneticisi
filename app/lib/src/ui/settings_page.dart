@@ -92,6 +92,11 @@ class SettingsPage extends StatelessWidget {
           ),
           const _ConnectionFields(),
           const Divider(),
+          if (isMediaSupported) ...[
+            const _SectionHeader('Video'),
+            const _MediaToolsStatus(),
+            const Divider(),
+          ],
           const _SectionHeader('Torrent'),
           ListTile(
             title: Text('Eş bağlantısı sınırı: ${settings.torrentMaxPeers}'),
@@ -159,6 +164,58 @@ class SettingsPage extends StatelessWidget {
             const _CaptureSection(),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// yt-dlp ve ffmpeg durumu; eksikse kurulum komutunu gösterir.
+class _MediaToolsStatus extends StatefulWidget {
+  const _MediaToolsStatus();
+
+  @override
+  State<_MediaToolsStatus> createState() => _MediaToolsStatusState();
+}
+
+class _MediaToolsStatusState extends State<_MediaToolsStatus> {
+  final MediaToolPaths _tools = locateMediaTools();
+  String? _version;
+
+  @override
+  void initState() {
+    super.initState();
+    final ytDlp = _tools.ytDlp;
+    if (ytDlp != null) {
+      unawaited(
+        mediaToolVersion(ytDlp).then((value) {
+          if (mounted) setState(() => _version = value);
+        }),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_tools.isComplete) {
+      return ListTile(
+        leading: const Icon(Icons.check_circle_outline),
+        title: const Text('Video indirme hazır'),
+        subtitle: Text(
+          'yt-dlp ${_version ?? ''}, ffmpeg bulundu. '
+          'DRM korumalı içerikler indirilemez.',
+        ),
+      );
+    }
+    final hint = mediaInstallHint();
+    return ListTile(
+      leading: const Icon(Icons.error_outline),
+      title: const Text('Video indirme için araç gerekli'),
+      subtitle: SelectableText('Kurmak için: $hint'),
+      trailing: IconButton(
+        tooltip: 'Komutu kopyala',
+        icon: const Icon(Icons.copy),
+        onPressed: () =>
+            unawaited(Clipboard.setData(ClipboardData(text: hint))),
       ),
     );
   }

@@ -5,6 +5,7 @@ import 'package:download_manager/src/app_controller.dart';
 import 'package:download_manager/src/format.dart';
 import 'package:download_manager/src/platform_bridge.dart';
 import 'package:download_manager/src/settings.dart';
+import 'package:download_manager/src/ui/add_download_dialog.dart';
 import 'package:download_manager/src/ui/home_page.dart';
 import 'package:download_manager/src/ui/logo.dart';
 import 'package:download_manager/src/ui/settings_page.dart';
@@ -21,6 +22,7 @@ class _RecordingController extends AppController {
   });
 
   final List<Uri> added = [];
+  MediaOptions? lastMedia;
 
   @override
   DownloadTask addDownload(
@@ -28,8 +30,10 @@ class _RecordingController extends AppController {
     String? fileName,
     String? expectedSha256,
     Map<String, String> headers = const {},
+    MediaOptions? media,
   }) {
     added.add(url);
+    lastMedia = media;
     return DownloadTask(
       DownloadRequest(url: url, directory: settings.downloadDirectory),
     );
@@ -183,6 +187,75 @@ void main() {
     expect(recording.added, [Uri.parse(magnet)]);
   });
 
+  testWidgets('video bağlantısı Video / Ses kipini açar, MP3 seçilebilir', (
+    tester,
+  ) async {
+    final recording = _RecordingController(
+      settings: controller.settings,
+      queue: controller.queue,
+      bridge: controller.bridge,
+      settingsFile: controller.settingsFile,
+    );
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppController>.value(
+        value: recording,
+        child: const MaterialApp(home: HomePage()),
+      ),
+    );
+    await tester.tap(find.text('İndirme ekle'));
+    await tester.pumpAndSettle();
+    expect(find.text('Biçim'), findsNothing);
+
+    const url = 'https://www.youtube.com/watch?v=abc';
+    await tester.enterText(find.byType(TextFormField).first, url);
+    await tester.pumpAndSettle();
+    expect(find.text('Biçim'), findsOneWidget);
+    expect(find.text('Oynatma listesinin tamamı'), findsOneWidget);
+
+    await tester.tap(find.text('MP4 (video)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MP3 (yalnızca ses)').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('İndir'));
+    await tester.pumpAndSettle();
+    expect(recording.added, [Uri.parse(url)]);
+    expect(recording.lastMedia!.format, MediaFormat.mp3);
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    expect(controller.settings.mediaFormat, MediaFormat.mp3);
+  });
+
+  testWidgets('paylaşılan video bağlantısıyla açılınca hatasız Video kipinde', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppController>.value(
+        value: controller,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: AddDownloadDialog(
+              initialUrl: 'https://youtu.be/abc?list=PL1',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Biçim'), findsOneWidget);
+    final toggle = tester.widget<SwitchListTile>(find.byType(SwitchListTile));
+    expect(
+      toggle.value,
+      isTrue,
+      reason: 'list= olan adreste liste açık gelmeli',
+    );
+  });
+
   test('torrent ayarları güvenli varsayılanlarla motora geçer', () async {
     final settings = AppSettings(
       downloadDirectory: dir.path,
@@ -230,6 +303,8 @@ void main() {
 
   test('hatalar kullanıcı metnine çevrilir', () {
     expect(errorMessage(HttpStatusException(404)), contains('bulunamadı'));
+    expect(errorMessage(const MediaDrmException('DRM')), 'DRM');
+    expect(stateLabel(DownloadState.converting), 'Dönüştürülüyor');
     expect(errorMessage(HttpStatusException(403)), contains('reddetti'));
     expect(errorMessage(const DiskFullException('x')), 'Diskte yer kalmadı.');
     expect(

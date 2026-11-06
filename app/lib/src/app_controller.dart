@@ -166,8 +166,13 @@ class AppController extends ChangeNotifier {
     String? fileName,
     String? expectedSha256,
     Map<String, String> headers = const {},
+    MediaOptions? media,
   }) {
     if (!isTorrentUri(url)) validateDownloadUri(url);
+    // Eklentiden gelen video sayfaları web sayfası olarak kaydedilmesin.
+    media ??= isMediaSupported && isLikelyMediaUrl(url)
+        ? settings.mediaOptions
+        : null;
     if (!_notificationAsked) {
       _notificationAsked = true;
       unawaited(bridge.requestNotificationPermission());
@@ -180,6 +185,7 @@ class AppController extends ChangeNotifier {
         segments: settings.segments,
         headers: headers,
         expectedSha256: expectedSha256,
+        media: media,
       ),
     );
   }
@@ -330,6 +336,36 @@ class AppController extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  /// Oynatma listesini okur ve her videoyu ayrı indirme olarak ekler. Liste kendi
+  /// klasörüne iner. Eklenen öğe sayısını döndürür.
+  Future<int> addMediaPlaylist(Uri url, MediaOptions media) async {
+    final info = await probeMedia(
+      url,
+      locateMediaTools(),
+      proxy: settings.proxy,
+    );
+    if (!info.isPlaylist) {
+      addDownload(url, media: media);
+      return 1;
+    }
+    final folder = p.join(
+      settings.downloadDirectory,
+      sanitizeFileName(info.title),
+    );
+    for (final entry in info.entries) {
+      queue.add(
+        DownloadRequest(
+          url: entry.url,
+          directory: folder,
+          fileName: null,
+          segments: settings.segments,
+          media: media,
+        ),
+      );
+    }
+    return info.entries.length;
   }
 
   /// Seçilen `.torrent` dosyasını uygulama klasörüne kopyalar: kaynak silinse veya

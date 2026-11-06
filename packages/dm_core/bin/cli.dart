@@ -20,6 +20,14 @@ Future<void> main(List<String> arguments) async {
     ..addFlag('hash',
         help: 'SHA-256 özetini hesapla ve yazdır', negatable: false)
     ..addMultiOption('header', abbr: 'H', help: 'Ek başlık, örn. "Ad: Değer"')
+    ..addOption('media',
+        help: 'Video/ses olarak indir', allowed: ['mp4', 'mp3'])
+    ..addOption('quality', help: 'En yüksek video yüksekliği, örn. 720')
+    ..addFlag(
+      'playlist',
+      help: 'Oynatma listesinin tamamını indir (--media ile)',
+      negatable: false,
+    )
     ..addFlag('quiet', abbr: 'q', help: 'İlerleme yazdırma', negatable: false)
     ..addFlag('help', abbr: 'h', negatable: false);
 
@@ -62,6 +70,22 @@ Future<void> main(List<String> arguments) async {
     headers[raw.substring(0, colon).trim()] = raw.substring(colon + 1).trim();
   }
 
+  final mediaName = args.option('media');
+  final media = mediaName == null
+      ? null
+      : MediaOptions(
+          format: MediaFormat.values.byName(mediaName),
+          maxHeight: int.tryParse(args.option('quality') ?? ''),
+        );
+  if (media != null && args.flag('playlist')) {
+    await _downloadPlaylist(
+      Uri.parse(args.rest.single),
+      media,
+      args.option('output')!,
+    );
+    return;
+  }
+
   final task = DownloadTask(
     DownloadRequest(
       url: Uri.parse(args.rest.single),
@@ -71,6 +95,7 @@ Future<void> main(List<String> arguments) async {
       headers: headers,
       expectedSha256: expected,
       computeSha256: args.flag('hash'),
+      media: media,
     ),
   );
 
@@ -121,6 +146,44 @@ Future<void> main(List<String> arguments) async {
       exitCode = 1;
   }
   await task.dispose();
+}
+
+Future<void> _downloadPlaylist(
+  Uri url,
+  MediaOptions media,
+  String output,
+) async {
+  final DownloadException? failure;
+  try {
+    final info = await probeMedia(url, locateMediaTools());
+    final entries = info.isPlaylist
+        ? info.entries
+        : [MediaEntry(url: url, title: info.title)];
+    stdout.writeln('${info.title}: ${entries.length} öğe');
+    final directory = info.isPlaylist
+        ? '$output${Platform.pathSeparator}${sanitizeFileName(info.title)}'
+        : output;
+    var failed = 0;
+    for (final entry in entries) {
+      final task = DownloadTask(
+        DownloadRequest(url: entry.url, directory: directory, media: media),
+      );
+      final result = await task.run();
+      stdout.writeln(
+        result.state == DownloadState.completed
+            ? 'Tamamlandı: ${result.filePath}'
+            : 'Başarısız: ${entry.title}: ${result.error?.message}',
+      );
+      if (result.state != DownloadState.completed) failed++;
+      await task.dispose();
+    }
+    if (failed > 0) exitCode = 1;
+    return;
+  } on DownloadException catch (e) {
+    failure = e;
+  }
+  stderr.writeln('Başarısız: ${failure.message}');
+  exitCode = 1;
 }
 
 String _formatProgress(DownloadProgress p) {
