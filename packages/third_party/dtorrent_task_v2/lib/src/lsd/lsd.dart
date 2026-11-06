@@ -97,16 +97,16 @@ class LSD with EventsEmittable<LSDEvent> {
     _timer = Timer(Duration(seconds: 5 * 60), () => _announce());
   }
 
-  Future<void> _sendMessage(String message, [Completer<void>? completer]) {
-    if (_socket == null) return Future<void>.value();
-    completer ??= Completer<void>();
-    var success = _socket?.send(message.codeUnits, lsdHost, lsdPort);
-    if (success != null && !(success > 0)) {
-      Timer.run(() => _sendMessage(message, completer));
-    } else {
-      completer.complete();
+  /// Yerel yama: çoklu yayın engelli ağda `send` hep 0 döner; özgün sonsuz döngü
+  /// hem işlemciyi harcıyor hem de görevin başlamasını sonsuza dek engelliyordu.
+  Future<void> _sendMessage(String message) async {
+    for (var attempt = 0; attempt < 5; attempt++) {
+      if (_socket == null) return;
+      final sent = _socket?.send(message.codeUnits, lsdHost, lsdPort) ?? 0;
+      if (sent > 0) return;
+      await Future<void>.delayed(const Duration(milliseconds: 200));
     }
-    return completer.future;
+    _log.fine('LSD announce could not be sent');
   }
 
   /// BT-SEARCH * HTTP/1.1\r\n

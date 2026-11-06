@@ -1351,14 +1351,8 @@ class _TorrentTask
     try {
       await _lsd?.start();
     } catch (e) {
-      // Ignore port conflicts for LSD (port 6771) - it's not critical for functionality
-      if (e is SocketException &&
-          (e.message.contains('Address already in use') ||
-              e.osError?.errorCode == 48)) {
-        _log.warning('LSD port 6771 is already in use, continuing without LSD');
-      } else {
-        rethrow;
-      }
+      // Yerel yama: LSD isteğe bağlıdır; hiçbir hatası indirmeyi engellememeli.
+      _log.warning('LSD could not start, continuing without it', e);
     }
     _dhtListener = _dht?.createListener();
     _dhtListener

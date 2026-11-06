@@ -94,6 +94,7 @@ class DownloadFile {
       _bytesRequestController.add(null);
       return true;
     }
+    if (_closed) return false;
     _writeAccess ??= await _getRandomAccessFile(FileRequestType.write);
     var completer = Completer<bool>();
     _streamController?.add(WriteRequest(
@@ -111,6 +112,7 @@ class DownloadFile {
     if (isVirtualFile) {
       return List<int>.filled(length, 0);
     }
+    if (_closed) return <int>[];
     _readAccess ??= await _getRandomAccessFile(FileRequestType.read);
     var completer = Completer<List<int>>();
     _streamController?.add(
@@ -251,6 +253,7 @@ class DownloadFile {
   /// Request to write the buffer to disk.
   Future<bool> requestFlush() async {
     if (isVirtualFile) return true;
+    if (_closed) return true;
     _writeAccess ??= await _getRandomAccessFile(FileRequestType.write);
     var completer = Completer<bool>();
     _streamController?.add(FlushRequest(completer: completer));
@@ -308,14 +311,21 @@ class DownloadFile {
     if (isVirtualFile) {
       throw StateError('Virtual files do not support direct disk IO');
     }
+    // Yerel yama: kapalı dosya yeniden açılmaz. Bekleyen bir istek kapatma sonrasında
+    // tanıtıcı açarsa Windows dosyayı kilitli tutar ve taşıma/silme başarısız olur.
+    if (_closed) {
+      throw FileSystemException('File is closed', filePath);
+    }
     var file = await _getOrCreateFile();
     RandomAccessFile? access;
     if (type == FileRequestType.write) {
       _writeAccess ??= await file?.open(mode: FileMode.writeOnlyAppend);
       access = _writeAccess;
+      if (_closed) await _closeHandles();
     } else {
       _readAccess ??= await file?.open(mode: FileMode.read);
       access = _readAccess;
+      if (_closed) await _closeHandles();
     }
     if (_streamController == null) {
       _streamController = StreamController<FileRequest>();
@@ -324,8 +334,19 @@ class DownloadFile {
     return access!;
   }
 
+  /// Açılış sürerken kapatma gelirse tanıtıcıyı bırakır.
+  Future<void> _closeHandles() async {
+    final write = _writeAccess;
+    final read = _readAccess;
+    _writeAccess = null;
+    _readAccess = null;
+    await write?.close();
+    await read?.close();
+    throw FileSystemException('File is closed', filePath);
+  }
+
   Future<void> close() async {
-    if (isClosed) return;
+    if (isClosed && _writeAccess == null && _readAccess == null) return;
     _closed = true;
     try {
       await _streamSubscription?.cancel();

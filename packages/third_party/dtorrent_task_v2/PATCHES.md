@@ -14,3 +14,5 @@ Kaynak: https://github.com/atlet99/dtorrent_task_v2 (BSD 3-Clause, `LICENSE`).
 8. BEP 10 kimlik eşlemesi düzeltildi (`extended_processor.dart`): gelen mesajlar yerel kimliklerle çözülür. Özgün kodda PEX mesajları `ut_metadata` sanılıyor, magnet bağlantıları hiç tamamlanmıyordu. Metadata aşamasına da eş sınırı eklendi.
 9. Metadata isteklerinde yanıtsız eş sıranın sonuna alınır, kopan eş listeden çıkarılır (özgün kod hep aynı eşlere soruyordu).
 10. Metadata önbelleği geçici klasöre yazılmaz; indirilen torrentlerin kaydı iz bırakmaz.
+11. Kapalı dosya yeniden açılmaz, `close()` açık tanıtıcıyı daima kapatır (Windows'ta dosya kilitli kalıyordu).
+12. LSD gönderimi sınırlı denenir ve LSD hataları başlatmayı engellemez (çoklu yayın engelli ağda görev hiç başlamıyordu).

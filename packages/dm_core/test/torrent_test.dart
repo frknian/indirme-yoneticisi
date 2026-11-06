@@ -175,6 +175,24 @@ void main() {
     await queue.dispose();
   }, timeout: const Timeout(Duration(minutes: 1)));
 
+  test('bitince hiçbir dosya tanıtıcısı açık kalmaz', () async {
+    // Windows'ta açık tanıtıcı son adına taşımayı engeller. lsof ile her Unix'te görülür.
+    final data = randomBytes(80 * 1024, seed: 21);
+    final torrent = buildTorrent(
+      name: 'tanitici.bin',
+      announce: tracker.announce,
+      single: data,
+    );
+    final result = await (await startSeeded(torrent)).run();
+    expect(result.state, DownloadState.completed, reason: '${result.error}');
+
+    final lsof = await Process.run('lsof', ['-p', '$pid', '-Fn']);
+    final open = (lsof.stdout as String)
+        .split('\n')
+        .where((line) => line.contains(p.join(dir.path, 'cikti')));
+    expect(open, isEmpty);
+  }, testOn: '!windows', timeout: const Timeout(Duration(minutes: 1)));
+
   group('duraklat / iptal', () {
     test('devam ederken biten parçaları yeniden istemez', () async {
       final data = randomBytes(600 * 1024, seed: 3);
@@ -406,5 +424,5 @@ void main() {
     await restored.remove(again, deleteFile: true);
     expect(File(p.join(dir.path, 'cikti', 'kayit.bin')).existsSync(), isFalse);
     await restored.dispose();
-  });
+  }, timeout: const Timeout(Duration(minutes: 1)));
 }
