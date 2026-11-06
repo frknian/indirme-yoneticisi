@@ -224,7 +224,14 @@ void main() {
     expect(recording.added, [Uri.parse(url)]);
     expect(recording.lastMedia!.format, MediaFormat.mp3);
     // Kayıt bitmeden klasör silinirse Windows açık dosya yüzünden reddeder.
-    await tester.runAsync(() => recording.settingsSaved);
+    final saved = File('${controller.settingsFile.path}.tmp');
+    for (var i = 0; i < 100; i++) {
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      if (controller.settingsFile.existsSync() && !saved.existsSync()) break;
+    }
     expect(controller.settings.mediaFormat, MediaFormat.mp3);
   });
 
