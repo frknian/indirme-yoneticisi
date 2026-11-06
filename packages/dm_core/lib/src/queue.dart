@@ -315,7 +315,7 @@ class DownloadQueue {
       'headers': stripSensitiveHeaders(request.headers),
       'expectedSha256': request.expectedSha256,
       'computeSha256': request.computeSha256,
-      'media': request.media?.toJson(),
+      'media': task.media?.toJson(),
       'state': _resumeOnRestore.contains(task.id)
           ? DownloadState.queued.name
           : progress.state.name,

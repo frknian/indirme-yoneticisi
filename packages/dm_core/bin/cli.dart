@@ -28,6 +28,11 @@ Future<void> main(List<String> arguments) async {
       help: 'Oynatma listesinin tamamını indir (--media ile)',
       negatable: false,
     )
+    ..addFlag(
+      'qualities',
+      help: 'Videonun kalitelerini listele, indirme',
+      negatable: false,
+    )
     ..addFlag('quiet', abbr: 'q', help: 'İlerleme yazdırma', negatable: false)
     ..addFlag('help', abbr: 'h', negatable: false);
 
@@ -68,6 +73,11 @@ Future<void> main(List<String> arguments) async {
       return;
     }
     headers[raw.substring(0, colon).trim()] = raw.substring(colon + 1).trim();
+  }
+
+  if (args.flag('qualities')) {
+    await _listQualities(Uri.parse(args.rest.single));
+    return;
   }
 
   final mediaName = args.option('media');
@@ -146,6 +156,27 @@ Future<void> main(List<String> arguments) async {
       exitCode = 1;
   }
   await task.dispose();
+}
+
+Future<void> _listQualities(Uri url) async {
+  try {
+    final info = await probeMedia(
+      url,
+      locateMediaTools(),
+      wholePlaylist: false,
+    );
+    stdout.writeln(info.title);
+    for (final quality in info.qualities) {
+      final size = quality.estimatedBytes;
+      stdout.writeln(
+        '${quality.label}${size == null ? '' : '  yaklaşık ${_formatBytes(size)}'}'
+        '  (--quality ${quality.height})',
+      );
+    }
+  } on DownloadException catch (e) {
+    stderr.writeln('Başarısız: ${e.message}');
+    exitCode = 1;
+  }
 }
 
 Future<void> _downloadPlaylist(

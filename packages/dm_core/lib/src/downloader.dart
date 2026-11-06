@@ -73,6 +73,10 @@ class DownloadTask {
   final String id;
   final DownloadRequest request;
 
+  /// Bu görevin video seçenekleri: istekte verilen veya web sayfası çıkınca devreye giren.
+  MediaOptions? get media => request.media ?? _webPageMedia;
+  MediaOptions? _webPageMedia;
+
   /// Değişiklik bir sonraki başlatmada geçerli olur.
   DownloadTuning tuning;
 
@@ -168,8 +172,8 @@ class DownloadTask {
   Future<void> _run() async {
     _meter.reset();
     try {
-      if (request.media != null) {
-        await _runMedia(request.media!);
+      if (media != null) {
+        await _runMedia(media!);
         return;
       }
       if (isTorrentUri(request.url)) {
@@ -185,6 +189,15 @@ class DownloadTask {
       var probe = await _probeWithRetry();
       // Web sayfası kaydedip "tamamlandı" demek yanıltıcı olurdu.
       if (probe.contentType == 'text/html') {
+        final fallback = tuning.webPageMedia;
+        // Beklenen özet bir dosyaya aittir; sayfadan çıkan video onunla doğrulanamaz.
+        if (fallback != null &&
+            isMediaSupported &&
+            request.expectedSha256 == null) {
+          _webPageMedia = fallback;
+          await _runMedia(fallback);
+          return;
+        }
         throw const NotAFileException(
           'Bu adres dosya değil, web sayfası. Video ise Video/Ses seçeneğiyle '
           'indirin.',
@@ -531,7 +544,7 @@ class DownloadTask {
   }
 
   Future<void> _deleteArtifacts() async {
-    if (request.media != null) {
+    if (media != null) {
       try {
         await deleteTorrentFolder(request.directory, _mediaTempDir);
       } on DownloadException catch (e) {

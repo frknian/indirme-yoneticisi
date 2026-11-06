@@ -15,6 +15,7 @@ export 'src/media.dart'
         MediaFormat,
         MediaInfo,
         MediaOptions,
+        MediaQuality,
         MediaToolPaths,
         isLikelyMediaUrl,
         isMediaSupported,

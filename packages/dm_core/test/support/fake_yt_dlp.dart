@@ -26,6 +26,67 @@ Future<void> main(List<String> args) async {
     } else if (url.path == '/unsupported') {
       stderr.writeln('ERROR: Unsupported URL: $url');
       exit(1);
+    } else if (url.path == '/qualities') {
+      stdout.write(jsonEncode({
+        '_type': 'video',
+        'title': 'Kaliteli',
+        'duration': 100,
+        'formats': [
+          {'vcodec': 'none', 'acodec': 'none', 'ext': 'mhtml', 'height': 90},
+          {
+            'vcodec': 'none',
+            'acodec': 'opus',
+            'ext': 'webm',
+            'abr': 160,
+            'filesize': 9
+          },
+          {
+            'vcodec': 'none',
+            'acodec': 'mp4a.40.2',
+            'ext': 'm4a',
+            'abr': 128,
+            'filesize': 1000
+          },
+          {
+            'vcodec': 'av01.0',
+            'acodec': 'none',
+            'height': 2160,
+            'width': 3840,
+            'filesize': 90000
+          },
+          {
+            'vcodec': 'vp9',
+            'acodec': 'none',
+            'height': 1080,
+            'width': 1920,
+            'filesize': 7000
+          },
+          {
+            'vcodec': 'avc1.64',
+            'acodec': 'none',
+            'protocol': 'm3u8_native',
+            'height': 1080,
+            'width': 1920,
+            'tbr': 900000,
+          },
+          {
+            'vcodec': 'avc1.64',
+            'acodec': 'none',
+            'height': 1080,
+            'width': 1920,
+            'filesize': 5000
+          },
+          {
+            'vcodec': 'avc1.4d',
+            'acodec': 'mp4a.40.2',
+            'height': 720,
+            'width': 1280,
+            'tbr': 8
+          },
+          {'vcodec': 'avc1.4d', 'acodec': 'none', 'height': 1280, 'width': 480},
+          {'acodec': 'none', 'ext': 'mp4'},
+        ],
+      }));
     } else {
       stdout.write(jsonEncode({'_type': 'video', 'title': 'Tek', 'id': 'x'}));
     }

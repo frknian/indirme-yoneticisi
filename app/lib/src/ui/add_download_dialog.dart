@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../app_controller.dart';
+import '../format.dart';
 
 class AddDownloadDialog extends StatefulWidget {
   const AddDownloadDialog({super.key, this.initialUrl});
@@ -30,6 +31,21 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
   late MediaFormat _format;
   int? _maxHeight;
 
+  /// Kullanıcının tercihi. [_maxHeight] videoya uyarlanır; kaydedilen tercih uyarlanmaz,
+  /// yoksa 720p'lik tek bir video sonraki indirmeleri de 720p'ye düşürürdü.
+  int? _preferredHeight;
+  List<MediaQuality> _qualities = const [];
+  bool _loadingQualities = false;
+  String? _qualityNote;
+  String? _probedUrl;
+  Timer? _probeDelay;
+
+  /// Kullanıcı kipi kendisi seçtiyse otomatik algılama değiştirmez.
+  bool _modeChosen = false;
+  Timer? _pageCheckDelay;
+  int _pageCheckToken = 0;
+  int _probeToken = 0;
+
   @override
   void initState() {
     super.initState();
@@ -37,14 +53,148 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
     final settings = context.read<AppController>().settings;
     _format = settings.mediaFormat;
     _maxHeight = settings.mediaMaxHeight;
+    _preferredHeight = _maxHeight;
     if (_shouldEnableMedia()) _enableMedia();
+    _updateQualityProbe();
+    _updatePageCheck();
     _url.addListener(_detectMedia);
     if (widget.initialUrl == null) _fillFromClipboard();
   }
 
   /// Video sitesi bağlantısı yapıştırılınca Video/Ses kipine geçer.
   void _detectMedia() {
-    if (_shouldEnableMedia()) setState(_enableMedia);
+    setState(() {
+      if (!_modeChosen && !_isKnownVideoSite()) {
+        // Yapıştırılan yeni adres dosya olabilir: önceki otomatik seçim taşınmasın.
+        _mediaMode = false;
+        _wholePlaylist = false;
+      }
+      if (_shouldEnableMedia()) _enableMedia();
+      _updateQualityProbe();
+      _updatePageCheck();
+    });
+  }
+
+  bool _isKnownVideoSite() {
+    final uri = Uri.tryParse(_url.text.trim());
+    return uri != null && isLikelyMediaUrl(uri);
+  }
+
+  /// Bilinen video sitesi değilse sunucuya sorar; web sayfasıysa Video / Ses kipine geçer.
+  void _updatePageCheck() {
+    _pageCheckDelay?.cancel();
+    final token = ++_pageCheckToken;
+    final text = _url.text.trim();
+    final uri = Uri.tryParse(text);
+    if (!isMediaSupported ||
+        _modeChosen ||
+        _mediaMode ||
+        uri == null ||
+        !(uri.isScheme('http') || uri.isScheme('https')) ||
+        uri.host.isEmpty) {
+      return;
+    }
+    _pageCheckDelay = Timer(const Duration(milliseconds: 600), () async {
+      final isPage = await context.read<AppController>().isWebPage(uri);
+      if (!isPage || !mounted || token != _pageCheckToken || _modeChosen) {
+        return;
+      }
+      setState(() {
+        _enableMedia();
+        _updateQualityProbe();
+      });
+    });
+  }
+
+  /// Adres veya seçenekler değişince gerekiyorsa kalite sorgusunu planlar. Yazarken her
+  /// harfte yt-dlp çalışmasın diye bekler; süren eski sorgunun yanıtı yok sayılır.
+  void _updateQualityProbe() {
+    final text = _url.text.trim();
+    final uri = Uri.tryParse(text);
+    final wanted =
+        _mediaMode &&
+        _format == MediaFormat.mp4 &&
+        !_wholePlaylist &&
+        uri != null &&
+        (uri.isScheme('http') || uri.isScheme('https')) &&
+        uri.host.isNotEmpty;
+    if (wanted && text == _probedUrl) return;
+    _probeDelay?.cancel();
+    _probeToken++;
+    _loadingQualities = wanted;
+    if (text != _probedUrl) {
+      _probedUrl = null;
+      _qualities = const [];
+      _qualityNote = null;
+      _maxHeight = _preferredHeight;
+    }
+    if (!wanted) return;
+    final token = _probeToken;
+    _probeDelay = Timer(
+      const Duration(milliseconds: 600),
+      () => unawaited(_probeQualities(uri, text, token)),
+    );
+  }
+
+  Future<void> _probeQualities(Uri uri, String text, int token) async {
+    List<MediaQuality> qualities = const [];
+    String? note;
+    try {
+      final info = await context.read<AppController>().probeVideo(uri);
+      if (!info.isPlaylist) qualities = info.qualities;
+      if (qualities.isEmpty) {
+        note = 'Bu adres kalite bilgisi vermedi; seçim üst sınır olarak uygulanır.';
+      }
+    } on DownloadException catch (e) {
+      note = e.message;
+    }
+    if (!mounted || token != _probeToken) return;
+    setState(() {
+      _loadingQualities = false;
+      _probedUrl = text;
+      _qualities = qualities;
+      _qualityNote = note;
+      if (qualities.isNotEmpty) _maxHeight = _closestQuality(qualities);
+    });
+  }
+
+  /// Tercihi aşmayan en yüksek kalite; hepsi aşıyorsa en düşüğü.
+  int? _closestQuality(List<MediaQuality> qualities) {
+    final preferred = _preferredHeight;
+    if (preferred == null) return null;
+    for (final quality in qualities) {
+      if (quality.nominalHeight <= preferred) return quality.height;
+    }
+    return qualities.last.height;
+  }
+
+  String _qualityLabel(MediaQuality quality) {
+    final size = quality.estimatedBytes;
+    return size == null
+        ? quality.label
+        : '${quality.label}, yaklaşık ${formatBytes(size)}';
+  }
+
+  List<DropdownMenuItem<int?>> _qualityItems() {
+    if (_qualities.isEmpty) {
+      final heights = {1080, 720, 480, ?_maxHeight}.toList()
+        ..sort((a, b) => b.compareTo(a));
+      return [
+        const DropdownMenuItem(child: Text('En iyi')),
+        for (final height in heights)
+          DropdownMenuItem(value: height, child: Text('${height}p')),
+      ];
+    }
+    return [
+      DropdownMenuItem(
+        child: Text('En iyi (${_qualityLabel(_qualities.first)})'),
+      ),
+      for (final quality in _qualities)
+        DropdownMenuItem(
+          value: quality.height,
+          child: Text(_qualityLabel(quality)),
+        ),
+    ];
   }
 
   bool _shouldEnableMedia() {
@@ -69,6 +219,8 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
 
   @override
   void dispose() {
+    _probeDelay?.cancel();
+    _pageCheckDelay?.cancel();
     _url.removeListener(_detectMedia);
     _url.dispose();
     _name.dispose();
@@ -141,7 +293,7 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
     unawaited(
       controller.updateSettings((s) {
         s.mediaFormat = _format;
-        s.mediaMaxHeight = _maxHeight;
+        s.mediaMaxHeight = _preferredHeight;
       }),
     );
     if (!_wholePlaylist) {
@@ -178,20 +330,36 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
               child: Text('MP3 (yalnızca ses)'),
             ),
           ],
-          onChanged: (value) => setState(() => _format = value!),
+          onChanged: (value) => setState(() {
+            _format = value!;
+            _updateQualityProbe();
+          }),
         ),
         if (_format == MediaFormat.mp4) ...[
           const SizedBox(height: 12),
           DropdownButtonFormField<int?>(
+            // initialValue yalnızca ilk kurulumda okunur; liste değişince yeniden kurulur.
+            key: ValueKey(_qualities.map((q) => q.height).join(',')),
             initialValue: _maxHeight,
-            decoration: const InputDecoration(labelText: 'Kalite'),
-            items: const [
-              DropdownMenuItem(child: Text('En iyi')),
-              DropdownMenuItem(value: 1080, child: Text('1080p')),
-              DropdownMenuItem(value: 720, child: Text('720p')),
-              DropdownMenuItem(value: 480, child: Text('480p')),
-            ],
-            onChanged: (value) => setState(() => _maxHeight = value),
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: 'Kalite',
+              helperText: _loadingQualities
+                  ? 'Kaliteler okunuyor…'
+                  : _qualityNote,
+              helperMaxLines: 3,
+            ),
+            items: _qualityItems(),
+            onChanged: (value) => setState(() {
+              _maxHeight = value;
+              // Kısa kenar değil bilinen ad: 804 seçimi sonraki videoda 720p'ye düşmesin.
+              _preferredHeight =
+                  _qualities
+                      .where((q) => q.height == value)
+                      .firstOrNull
+                      ?.nominalHeight ??
+                  value;
+            }),
           ),
         ],
         SwitchListTile(
@@ -199,7 +367,10 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
           title: const Text('Oynatma listesinin tamamı'),
           subtitle: const Text('Her video ayrı indirme olarak eklenir.'),
           value: _wholePlaylist,
-          onChanged: (value) => setState(() => _wholePlaylist = value),
+          onChanged: (value) => setState(() {
+            _wholePlaylist = value;
+            _updateQualityProbe();
+          }),
         ),
       ],
     );
@@ -224,8 +395,12 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
                       ButtonSegment(value: true, label: Text('Video / Ses')),
                     ],
                     selected: {_mediaMode},
-                    onSelectionChanged: (value) =>
-                        setState(() => _mediaMode = value.single),
+                    onSelectionChanged: (value) => setState(() {
+                      _mediaMode = value.single;
+                      _modeChosen = true;
+                      _updateQualityProbe();
+                      _updatePageCheck();
+                    }),
                   ),
                   const SizedBox(height: 8),
                 ],

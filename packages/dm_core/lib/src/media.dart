@@ -20,7 +20,7 @@ class MediaOptions {
 
   final MediaFormat format;
 
-  /// Video yüksekliği sınırı (örn. 720); null en iyi kalite demektir.
+  /// Video kalitesi sınırı, görüntünün kısa kenarı (örn. 720); null en iyi kalite demektir.
   final int? maxHeight;
 
   Map<String, dynamic> toJson() => {
@@ -260,9 +260,10 @@ List<String> buildMediaDownloadArgs({
       '--audio-quality',
       '0',
     ] else ...[
-      // H.264 ve AAC'yi tercih et; olmazsa ffmpeg MP4'e çevirir.
+      // Önce seçilen kalite; aynı kalitede H.264 ve AAC tercih edilir. vcodec öne alınırsa
+      // yalnızca VP9/AV1 olan 4K seçimi sessizce H.264 1080p'ye düşer.
       '-S',
-      'vcodec:h264,${height == null ? 'res' : 'res:$height'},acodec:m4a',
+      '${height == null ? 'res' : 'res:$height'},vcodec:h264,acodec:m4a',
       '--merge-output-format',
       'mp4',
       '--recode-video',
@@ -375,10 +376,49 @@ DownloadException classifyMediaError(String stderr, int exitCode) {
 }
 
 /// Bir video veya oynatma listesi hakkındaki bilgi.
+/// Bir videonun gerçekten sunduğu kalite.
+class MediaQuality {
+  const MediaQuality({required this.height, this.width, this.estimatedBytes});
+
+  /// Görüntünün kısa kenarı; [MediaOptions.maxHeight] ile aynı birimde.
+  final int height;
+
+  /// Görüntünün uzun kenarı; bilinmiyorsa null.
+  final int? width;
+
+  /// Bilinen adı. Geniş ekran bir film 1920×804 olsa da 1080p kalitesindedir; kısa kenar
+  /// tek başına kullanılırsa listede "804p" görünürdü.
+  int get nominalHeight {
+    final long = width;
+    if (long == null || long * 9 <= height * 16) return height;
+    final expected = long * 9 / 16;
+    const standard = [144, 240, 360, 480, 720, 1080, 1440, 2160, 4320];
+    return standard.firstWhere(
+      (h) => h >= expected * 0.98,
+      orElse: () => expected.round(),
+    );
+  }
+
+  /// Örn. "1080p" veya geniş ekranda "1080p (1920×804)".
+  String get label => nominalHeight == height
+      ? '${height}p'
+      : '${nominalHeight}p ($width×$height)';
+
+  /// Yaklaşık dosya boyutu; site bildirmiyorsa null.
+  final int? estimatedBytes;
+}
+
 class MediaInfo {
-  const MediaInfo({required this.title, required this.entries});
+  const MediaInfo({
+    required this.title,
+    required this.entries,
+    this.qualities = const [],
+  });
 
   final String title;
+
+  /// Videonun sunduğu kaliteler, en yüksek önce; bilinmiyorsa boş.
+  final List<MediaQuality> qualities;
 
   /// Oynatma listesi öğeleri; tek videoda boş.
   final List<MediaEntry> entries;
@@ -451,7 +491,95 @@ Future<MediaInfo> probeMedia(
   return MediaInfo(
     title: decoded['title'] as String? ?? url.toString(),
     entries: entries,
+    qualities: parseMediaQualities(decoded),
   );
+}
+
+/// yt-dlp'nin biçim listesinden kullanıcıya sunulacak kaliteleri çıkarır; en yüksek önce.
+/// Boyut, indirmenin seçeceği biçimlere göre tahmin edilir.
+List<MediaQuality> parseMediaQualities(Map<String, dynamic> info) {
+  final formats = (info['formats'] as List<dynamic>? ?? const [])
+      .whereType<Map<String, dynamic>>()
+      .toList();
+  final duration = (info['duration'] as num?)?.toDouble();
+
+  int? sizeOf(Map<String, dynamic> format) {
+    final exact = format['filesize'] ?? format['filesize_approx'];
+    if (exact is num && exact > 0) return exact.round();
+    final bitrate = format['tbr'];
+    if (bitrate is num && bitrate > 0 && duration != null) {
+      return (bitrate * 125 * duration).round();
+    }
+    return null;
+  }
+
+  final audios = formats
+      .where((f) => f['vcodec'] == 'none' && f['acodec'] != 'none')
+      .toList();
+  double audioRank(Map<String, dynamic> f) =>
+      (f['ext'] == 'm4a' ? 1e6 : 0) + ((f['abr'] as num?)?.toDouble() ?? 0);
+  audios.sort((a, b) => audioRank(b).compareTo(audioRank(a)));
+  final audioSize = audios.isEmpty ? null : sizeOf(audios.first);
+
+  final byQuality = <int, List<Map<String, dynamic>>>{};
+  for (final format in formats) {
+    if (format['vcodec'] == 'none') continue;
+    final height = format['height'];
+    if (height is! num || height <= 0) continue;
+    final width = format['width'];
+    // yt-dlp'nin `res` sıralaması kısa kenarı kullanır; dikey videoda da aynı kalsın.
+    final edge = width is num && width > 0 && width < height ? width : height;
+    byQuality.putIfAbsent(edge.round(), () => []).add(format);
+  }
+
+  final qualities = <MediaQuality>[];
+  for (final entry in byQuality.entries) {
+    // yt-dlp'nin seçimiyle aynı sıra. HLS'in bildirdiği bit hızı gerçeğin çok üstünde olabilir.
+    var candidates = entry.value;
+    List<Map<String, dynamic>> narrow(
+      bool Function(Map<String, dynamic>) test,
+    ) {
+      final matching = candidates.where(test).toList();
+      return matching.isEmpty ? candidates : matching;
+    }
+
+    candidates = narrow((f) {
+      final codec = f['vcodec'];
+      return codec is String &&
+          (codec.startsWith('avc') || codec.startsWith('h264'));
+    });
+    candidates = narrow((f) {
+      final protocol = f['protocol'];
+      return protocol is! String || !protocol.contains('m3u8');
+    });
+    candidates = narrow((f) => f['acodec'] != 'none' && f['acodec'] != null);
+    int? videoSize;
+    Map<String, dynamic>? chosen;
+    for (final candidate in candidates) {
+      final size = sizeOf(candidate);
+      if (chosen == null || (size ?? 0) > (videoSize ?? 0)) {
+        chosen = candidate;
+        videoSize = size;
+      }
+    }
+    final needsAudio = chosen!['acodec'] == 'none';
+    final total = videoSize == null || (needsAudio && audioSize == null)
+        ? null
+        : videoSize + (needsAudio ? audioSize! : 0);
+    final width = chosen['width'];
+    final height = chosen['height'];
+    qualities.add(
+      MediaQuality(
+        height: entry.key,
+        width: width is num && height is num
+            ? (width > height ? width : height).round()
+            : null,
+        estimatedBytes: total,
+      ),
+    );
+  }
+  qualities.sort((a, b) => b.height.compareTo(a.height));
+  return qualities;
 }
 
 /// Süreci ve alt süreçlerini (ffmpeg) durdurur.

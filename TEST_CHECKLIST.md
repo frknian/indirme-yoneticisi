@@ -78,6 +78,7 @@ macOS'ta gerçek YouTube videosuyla MP4, MP3 ve oynatma listesi doğrulandı. CI
 - [ ] Windows: gerçek bir video MP4 ve MP3 olarak inmeli; Türkçe başlıklı dosya adı bozulmamalı.
 - [ ] Windows: indirme sırasında duraklat ve iptal; `ffmpeg` süreci geride kalmamalı.
 - [ ] Araçları kaldırıp **Ayarlar > Video** bölümünde kurulum komutunun göründüğünü kontrol edin.
+- [ ] Video bağlantısı yapıştırın: "Kaliteler okunuyor…" sonrası gerçek kaliteler ve boyutlar listelenmeli; seçilen kalite inmeli.
 - [ ] Arayüzden oynatma listesi ekleyin; videolar liste klasörüne inmeli.
 - [ ] Uzun bir videoda dönüştürme sırasında "Dönüştürülüyor" durumu görünmeli.
 

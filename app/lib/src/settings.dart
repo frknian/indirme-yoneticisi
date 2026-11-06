@@ -107,6 +107,7 @@ class AppSettings {
     retry: RetryPolicy(maxAttempts: maxAttempts),
     maxBytesPerSecond: speedLimitKiB * 1024,
     proxy: proxy,
+    webPageMedia: mediaOptions,
     torrent: TorrentSettings(
       maxPeers: torrentMaxPeers,
       listenPort: torrentListenPort,

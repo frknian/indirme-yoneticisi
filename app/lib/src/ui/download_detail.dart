@@ -52,7 +52,7 @@ class DownloadDetail extends StatelessWidget {
             '${p.peers} eş, ${p.seeds} kaynak  •  '
                 'gönderim ${formatBytes(p.uploadBytesPerSecond.round())}/sn',
           ),
-        if (task.request.media case final media?)
+        if (task.media case final media?)
           _Field(
             'Biçim',
             media.format == MediaFormat.mp3

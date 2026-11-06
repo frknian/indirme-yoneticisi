@@ -23,6 +23,15 @@ class _RecordingController extends AppController {
 
   final List<Uri> added = [];
   MediaOptions? lastMedia;
+  MediaInfo videoInfo = const MediaInfo(title: 'Video', entries: []);
+
+  bool webPage = false;
+
+  @override
+  Future<MediaInfo> probeVideo(Uri url) async => videoInfo;
+
+  @override
+  Future<bool> isWebPage(Uri url) async => webPage;
 
   @override
   DownloadTask addDownload(
@@ -233,6 +242,133 @@ void main() {
       if (controller.settingsFile.existsSync() && !saved.existsSync()) break;
     }
     expect(controller.settings.mediaFormat, MediaFormat.mp3);
+  });
+
+  testWidgets('web sayfası bağlantısı Video / Ses kipine geçer, dosya geçmez', (
+    tester,
+  ) async {
+    final recording = _RecordingController(
+      settings: controller.settings,
+      queue: controller.queue,
+      bridge: controller.bridge,
+      settingsFile: controller.settingsFile,
+    );
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppController>.value(
+        value: recording,
+        child: const MaterialApp(
+          home: Scaffold(body: AddDownloadDialog(initialUrl: '')),
+        ),
+      ),
+    );
+    final field = find.byType(TextFormField).first;
+
+    await tester.enterText(field, 'https://ornek.com/dosya.zip');
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+    expect(find.text('Biçim'), findsNothing);
+
+    recording.webPage = true;
+    await tester.enterText(field, 'https://ornek.com/film/izle');
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+    expect(find.text('Biçim'), findsOneWidget);
+
+    // Dosya adresine dönünce otomatik seçim kalkar.
+    recording.webPage = false;
+    await tester.enterText(field, 'https://ornek.com/dosya.zip');
+    await tester.pump();
+    expect(find.text('Biçim'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 700));
+  });
+
+  testWidgets('kalite listesi videonun gerçek seçeneklerini gösterir', (
+    tester,
+  ) async {
+    controller.settings.mediaMaxHeight = 1080;
+    final recording =
+        _RecordingController(
+            settings: controller.settings,
+            queue: controller.queue,
+            bridge: controller.bridge,
+            settingsFile: controller.settingsFile,
+          )
+          ..videoInfo = const MediaInfo(
+            title: 'Film',
+            entries: [],
+            qualities: [
+              MediaQuality(height: 2160, estimatedBytes: 5 * 1024 * 1024),
+              MediaQuality(
+                height: 804,
+                width: 1920,
+                estimatedBytes: 1024 * 1024,
+              ),
+              MediaQuality(height: 360),
+            ],
+          );
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppController>.value(
+        value: recording,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: AddDownloadDialog(initialUrl: 'https://youtu.be/abc'),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Kaliteler okunuyor…'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+
+    // 1080 tercihi geniş ekran film için de geçerlidir: bilinen ada göre eşleşir.
+    expect(find.text('1080p (1920×804), yaklaşık 1.0 MiB'), findsOneWidget);
+    await tester.tap(find.text('1080p (1920×804), yaklaşık 1.0 MiB'));
+    await tester.pumpAndSettle();
+    expect(find.text('En iyi (2160p, yaklaşık 5.0 MiB)'), findsOneWidget);
+    await tester.tap(find.text('360p').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('İndir'));
+    await tester.pump();
+    expect(recording.lastMedia?.maxHeight, 360);
+  });
+
+  testWidgets('kalite bilgisi yoksa tercih korunur, standart liste kalır', (
+    tester,
+  ) async {
+    controller.settings.mediaMaxHeight = 720;
+    final recording = _RecordingController(
+      settings: controller.settings,
+      queue: controller.queue,
+      bridge: controller.bridge,
+      settingsFile: controller.settingsFile,
+    );
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppController>.value(
+        value: recording,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: AddDownloadDialog(initialUrl: 'https://youtu.be/abc'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+    expect(find.text('720p'), findsOneWidget);
+    expect(find.textContaining('kalite bilgisi vermedi'), findsOneWidget);
+    await tester.tap(find.text('İndir'));
+    await tester.pump();
+    expect(recording.lastMedia?.maxHeight, 720);
   });
 
   testWidgets('paylaşılan video bağlantısıyla açılınca hatasız Video kipinde', (

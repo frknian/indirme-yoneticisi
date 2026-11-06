@@ -43,3 +43,4 @@
 - **Web sayfası yanıtı:** `Content-Type: text/html` dönen dosya indirmesi hata sayılır; sayfayı kaydedip "tamamlandı" demek yanıltıcıydı.
 - **Dağıtım:** hazır paketler `v*` etiketiyle GitHub Releases'e konur; Windows paketi VC++ çalışma zamanını içerir, Mac paketi `ditto` ile sıkıştırılır. Android paketi yayınlanmaz, çünkü CI'ın hata ayıklama anahtarıyla imzalanır.
 - **Lisans ve kimlik:** proje MIT lisanslıdır; commit'lerde GitHub'ın gizli e-posta adresi kullanılır.
+- **Kalite seçimi:** yt-dlp sıralaması `res` önce olacak şekilde değişti; `vcodec` önde iken 4K seçimi H.264 1080p'ye düşüyordu. Bu nedenle "En iyi" artık VP9/AV1 de seçebilir. Korsan yayın sitelerine özel destek eklenmez.

@@ -194,10 +194,15 @@ Android'de paylaş menüsü ve magnet bağlantıları da aynı pencereyi açar.
 
 ### Video ve ses
 
-Video sitesi bağlantısı yapıştırınca pencere **Video / Ses** kipine geçer. Masaüstünde çalışır.
+Video sayfası bağlantısı yapıştırınca pencere **Video / Ses** kipine geçer; bilinen video siteleri dışındaki
+web sayfaları da sunucuya sorularak algılanır. Dosya kipinde veya Chrome eklentisinden gelen bir adres web sayfası
+çıkarsa indirme kendiliğinden video olarak denenir. Video bulunamazsa açık bir hata verir. Masaüstünde çalışır.
 
 - **Biçim:** MP4 (video) veya MP3 (yalnızca ses). Kaynak başka biçimdeyse `ffmpeg` dönüştürür.
-- **Kalite:** en iyi, 1080p, 720p veya 480p.
+- **Kalite:** bağlantıyı yapıştırınca video sorgulanır; yalnızca o videoda bulunan kaliteler yaklaşık
+  dosya boyutlarıyla listelenir. Geniş ekran filmler bilinen adıyla görünür, örneğin `1080p (1920×804)`.
+  Site bilgi vermezse veya oynatma listesinde standart seçenekler üst sınır olarak uygulanır.
+  1080p üstü kaliteler çoğu sitede VP9 veya AV1'dir; QuickTime açamazsa VLC kullanın.
 - **Oynatma listesi:** **Oynatma listesinin tamamı** açıkken her video ayrı indirme olarak eklenir ve
   listenin adını taşıyan klasöre iner. Duraklatma ve iptal her video için ayrıdır.
 - **Desteklenen siteler:** YouTube, Vimeo ve `yt-dlp`'nin desteklediği diğer siteler, ayrıca doğrudan

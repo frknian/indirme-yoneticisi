@@ -123,7 +123,7 @@ void main() {
         using: tuning(proxy: '127.0.0.1:3128', rate: 2048),
       ).run();
       final args = lastArgs();
-      expect(args.join(' '), contains('res:720'));
+      expect(args, contains('res:720,vcodec:h264,acodec:m4a'));
       expect(args.join(' '), contains('--proxy http://127.0.0.1:3128'));
       expect(args.join(' '), contains('--limit-rate 2048'));
       expect(args.join(' '), contains('--ffmpeg-location $fakeFfmpeg'));
@@ -288,6 +288,31 @@ void main() {
   group('oynatma listesi', () {
     MediaToolPaths tools() => MediaToolPaths(ytDlp: fake, ffmpeg: fakeFfmpeg);
 
+    test('gerçek kaliteleri kısa kenara göre ve boyutla listeler', () async {
+      final info = await probeMedia(
+        Uri.parse('http://fake.invalid/qualities'),
+        tools(),
+        wholePlaylist: false,
+      );
+      expect(info.isPlaylist, isFalse);
+      expect(info.qualities.map((q) => q.height), [2160, 1080, 720, 480]);
+      expect(info.qualities.map((q) => q.estimatedBytes), [
+        91000, // video + m4a ses
+        6000, // VP9 daha büyük olsa da H.264 seçilir
+        100000, // tek akışlı: tbr x süre, ses eklenmez
+        null, // boyut bilinmiyor
+      ]);
+    });
+
+    test('geniş ekran film bilinen kalite adıyla görünür', () {
+      expect(const MediaQuality(height: 804, width: 1920).label,
+          '1080p (1920×804)');
+      expect(const MediaQuality(height: 1608, width: 3840).nominalHeight, 2160);
+      expect(const MediaQuality(height: 1080, width: 1920).label, '1080p');
+      expect(const MediaQuality(height: 480, width: 854).label, '480p');
+      expect(const MediaQuality(height: 720).label, '720p');
+    });
+
     test('öğeleri listeler, bozuk adresi atlar', () async {
       final info = await probeMedia(
         Uri.parse('http://fake.invalid/playlist'),
@@ -372,6 +397,67 @@ void main() {
       ]) {
         expect(isLikelyMediaUrl(Uri.parse(no)), isFalse, reason: no);
       }
+    });
+  });
+
+  group('web sayfası video olarak denenir', () {
+    late HttpServer html;
+
+    setUp(() async {
+      html = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      html.listen((request) async {
+        request.response.headers.contentType = ContentType.html;
+        request.response.write('<html></html>');
+        await request.response.close();
+      });
+    });
+
+    tearDown(() => html.close(force: true));
+
+    DownloadTuning tuning() => DownloadTuning(
+          ytDlpPath: fake,
+          ffmpegPath: fakeFfmpeg,
+          webPageMedia: const MediaOptions(maxHeight: 720),
+        );
+
+    test('video bulunursa iner ve görev video olarak kalır', () async {
+      final task = DownloadTask(
+        DownloadRequest(
+          url: Uri.parse('http://127.0.0.1:${html.port}/ok'),
+          directory: dir.path,
+        ),
+        tuning: tuning(),
+      );
+      final result = await task.run();
+      expect(result.state, DownloadState.completed);
+      expect(result.isMedia, isTrue);
+      expect(task.media?.maxHeight, 720);
+      expect(p.basename(result.filePath!), startsWith('Başlık'));
+    });
+
+    test('video yoksa sitenin hatası bildirilir', () async {
+      final result = await DownloadTask(
+        DownloadRequest(
+          url: Uri.parse('http://127.0.0.1:${html.port}/unsupported'),
+          directory: dir.path,
+        ),
+        tuning: tuning(),
+      ).run();
+      expect(result.state, DownloadState.failed);
+      expect(result.error, isA<MediaDownloadException>());
+    });
+
+    test('beklenen özet varsa videoya geçmez', () async {
+      final result = await DownloadTask(
+        DownloadRequest(
+          url: Uri.parse('http://127.0.0.1:${html.port}/ok'),
+          directory: dir.path,
+          expectedSha256: 'a' * 64,
+        ),
+        tuning: tuning(),
+      ).run();
+      expect(result.state, DownloadState.failed);
+      expect(result.error, isA<NotAFileException>());
     });
   });
 

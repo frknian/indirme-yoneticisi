@@ -340,6 +340,30 @@ class AppController extends ChangeNotifier {
 
   /// Oynatma listesini okur ve her videoyu ayrı indirme olarak ekler. Liste kendi
   /// klasörüne iner. Eklenen öğe sayısını döndürür.
+  /// Adres dosya değil web sayfası mı? Bilinemiyorsa false: indirme yine dosya olarak başlar,
+  /// sayfa çıkarsa görev kendisi videoya geçer.
+  Future<bool> isWebPage(Uri url) async {
+    try {
+      final probe = await probeUrl(
+        url,
+        timeout: const Duration(seconds: 10),
+        proxy: settings.proxy,
+      );
+      return probe.contentType == 'text/html';
+    } on DownloadException {
+      return false;
+    }
+  }
+
+  /// Tek bir videonun bilgisini ve gerçek kalitelerini sorgular.
+  Future<MediaInfo> probeVideo(Uri url) => probeMedia(
+    url,
+    locateMediaTools(),
+    wholePlaylist: false,
+    proxy: settings.proxy,
+    timeout: const Duration(seconds: 60),
+  );
+
   Future<int> addMediaPlaylist(Uri url, MediaOptions media) async {
     final info = await probeMedia(
       url,

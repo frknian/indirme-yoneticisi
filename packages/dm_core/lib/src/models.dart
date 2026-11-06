@@ -78,6 +78,7 @@ class DownloadTuning {
     this.torrent = const TorrentSettings(),
     this.ytDlpPath,
     this.ffmpegPath,
+    this.webPageMedia,
   });
 
   final RetryPolicy retry;
@@ -108,6 +109,10 @@ class DownloadTuning {
   /// Boşsa araçlar PATH ve paket yöneticisi klasörlerinde aranır.
   final String? ytDlpPath;
   final String? ffmpegPath;
+
+  /// Adres dosya yerine web sayfası döndürürse video olarak denemek için seçenekler;
+  /// null ise web sayfası hata sayılır.
+  final MediaOptions? webPageMedia;
 }
 
 /// Torrent motorunun bağlantı ayarları.
