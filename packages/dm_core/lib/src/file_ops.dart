@@ -12,7 +12,7 @@ bool isTransientFileLock(FileSystemException error) {
 /// Son denemede veya kalıcı hatada özgün hata fırlatılır.
 Future<void> retryFileOperation(
   Future<void> Function() operation, {
-  int attempts = 6,
+  int attempts = 8,
   Duration initialDelay = const Duration(milliseconds: 50),
   bool Function(FileSystemException error) isRetryable = isTransientFileLock,
 }) async {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'safe_close.dart';
 import 'dart:typed_data';
 import 'package:dtorrent_task_v2/src/torrent/torrent_model.dart';
 import 'package:logging/logging.dart';
@@ -52,6 +53,7 @@ class StateFileV2 {
   int _uploaded = 0;
   final TorrentModel metainfo;
   RandomAccessFile? _access;
+  Future<RandomAccessFile?>? _opening;
   File? _bitfieldFile;
   File? _pathsFile;
   Map<String, String> _movedFilePaths = {};
@@ -1052,13 +1054,19 @@ class StateFileV2 {
     }
   }
 
-  Future<RandomAccessFile?> getAccess() async {
-    if (_access == null) {
-      _access = await _bitfieldFile?.open(mode: FileMode.writeOnlyAppend);
-      _streamController = StreamController<Map<String, dynamic>>();
-      _streamSubscription = _streamController?.stream.listen(_processRequest,
-          onError: (e) => _log.warning('State file stream error', e));
+  /// Yerel yama: tek açma. Eşzamanlı çağrılar aynı işlemi bekler, kapalı dosya yeniden açılmaz.
+  Future<RandomAccessFile?> getAccess() {
+    if (isClosed) {
+      throw const FileSystemException('State file is closed');
     }
+    return _opening ??= _openAccess();
+  }
+
+  Future<RandomAccessFile?> _openAccess() async {
+    _access = await _bitfieldFile?.open(mode: FileMode.writeOnlyAppend);
+    _streamController = StreamController<Map<String, dynamic>>();
+    _streamSubscription = _streamController?.stream.listen(_processRequest,
+        onError: (e) => _log.warning('State file stream error', e));
     return _access;
   }
 
@@ -1066,10 +1074,10 @@ class StateFileV2 {
     if (isClosed) return;
     _closed = true;
     try {
+      await _opening;
       await _streamSubscription?.cancel();
       await _streamController?.close();
-      await _access?.flush();
-      await _access?.close();
+      await closeRandomAccess(_access);
     } catch (e) {
       _log.warning('Error while closing the status file: ', e);
     } finally {

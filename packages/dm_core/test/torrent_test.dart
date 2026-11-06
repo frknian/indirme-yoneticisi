@@ -5,7 +5,11 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:dm_core/dm_core.dart';
 import 'package:dtorrent_task_v2/dtorrent_task_v2.dart'
-    show TorrentEngineConfig, TorrentParser, isSafeTorrentPath;
+    show
+        TorrentEngineConfig,
+        TorrentParser,
+        closeRandomAccess,
+        isSafeTorrentPath;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -192,6 +196,28 @@ void main() {
         .where((line) => line.contains(p.join(dir.path, 'cikti')));
     expect(open, isEmpty);
   }, testOn: '!windows', timeout: const Timeout(Duration(minutes: 1)));
+
+  group('güvenli kapatma', () {
+    test('bekleyen yazma varken düz flush hata atar', () async {
+      final file = File(p.join(dir.path, 'kanit.bin'));
+      final access = await file.open(mode: FileMode.write);
+      final pending = access.writeFrom(Uint8List(1024 * 1024));
+      await expectLater(access.flush(), throwsA(isA<FileSystemException>()));
+      await pending;
+      await access.close();
+    });
+
+    test('bekleyen yazma varken bile dosyayı kapatır', () async {
+      final file = File(p.join(dir.path, 'kapat.bin'));
+      final access = await file.open(mode: FileMode.write);
+      final pending = access.writeFrom(Uint8List(1024 * 1024));
+      await closeRandomAccess(access);
+      await pending;
+      expect(await file.length(), 1024 * 1024);
+      // Kapanmış tanıtıcıda işlem hata verir: gerçekten kapandığının kanıtı.
+      await expectLater(access.length(), throwsA(isA<FileSystemException>()));
+    });
+  });
 
   group('duraklat / iptal', () {
     test('devam ederken biten parçaları yeniden istemez', () async {

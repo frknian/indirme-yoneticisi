@@ -366,8 +366,8 @@ Future<bool> _download(
     unawaited(Future<void>.sync(listener.dispose));
     final done = completed.isCompleted;
     try {
-      await task.stop().timeout(const Duration(seconds: 5));
-      await task.dispose().timeout(const Duration(seconds: 5));
+      await task.stop().timeout(const Duration(seconds: 15));
+      await task.dispose().timeout(const Duration(seconds: 15));
     } on TimeoutException {
       // Durum dosyası parça tamamlandıkça yazıldığı için ilerleme kaybolmaz.
     }

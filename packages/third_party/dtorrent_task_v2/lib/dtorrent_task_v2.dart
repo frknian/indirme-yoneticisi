@@ -5,6 +5,7 @@ import 'dart:io';
 /// Exports the main torrent task, metadata, peer, queue, filtering, and
 /// utility modules used by package consumers.
 export 'src/engine_config.dart';
+export 'src/file/safe_close.dart';
 export 'src/file/download_file_manager.dart' show isSafeTorrentPath;
 export 'src/torrent_task_base.dart';
 export 'src/file/file_base.dart';

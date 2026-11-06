@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+
+import 'safe_close.dart';
 import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
@@ -347,6 +349,20 @@ class DownloadFile {
     return access!;
   }
 
+  /// Sürmekte olan açma işlemlerini bekler ki tanıtıcıları kapatılabilsin.
+  Future<void> _finishOpening() async {
+    try {
+      _writeAccess = await _writeOpening ?? _writeAccess;
+    } on FileSystemException {
+      // Açılamadıysa kapatılacak tanıtıcı da yoktur.
+    }
+    try {
+      _readAccess = await _readOpening ?? _readAccess;
+    } on FileSystemException {
+      // Açılamadıysa kapatılacak tanıtıcı da yoktur.
+    }
+  }
+
   /// Açılış sürerken kapatma gelirse tanıtıcıyı bırakır.
   Future<void> _closeHandles() async {
     final write = _writeAccess;
@@ -355,8 +371,8 @@ class DownloadFile {
     _readAccess = null;
     _writeOpening = null;
     _readOpening = null;
-    await write?.close();
-    await read?.close();
+    await closeRandomAccess(write);
+    await closeRandomAccess(read, flush: false);
     throw FileSystemException('File is closed', filePath);
   }
 
@@ -366,9 +382,9 @@ class DownloadFile {
     try {
       await _streamSubscription?.cancel();
       await _streamController?.close();
-      await _writeAccess?.flush();
-      await _writeAccess?.close();
-      await _readAccess?.close();
+      await _finishOpening();
+      await closeRandomAccess(_writeAccess);
+      await closeRandomAccess(_readAccess, flush: false);
       //  hlsStreamController can be closed by this moment via
       //  _readAndPushBytes. So, the future never completes.
       if (!_hlsStreamController.isClosed) _hlsStreamController.close();
@@ -396,9 +412,9 @@ class DownloadFile {
     try {
       await _streamSubscription?.cancel();
       await _streamController?.close();
-      await _writeAccess?.flush();
-      await _writeAccess?.close();
-      await _readAccess?.close();
+      await _finishOpening();
+      await closeRandomAccess(_writeAccess);
+      await closeRandomAccess(_readAccess, flush: false);
     } catch (e) {
       _log.warning('prepareForMove() error:', e);
     } finally {
