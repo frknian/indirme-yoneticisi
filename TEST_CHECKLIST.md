@@ -74,7 +74,7 @@ Uygulamada macOS ve Android'de gerçek magnet başlatıldı, ama bitişine kadar
 
 macOS'ta gerçek YouTube videosuyla MP4, MP3 ve oynatma listesi doğrulandı. CI yalnızca sahte `yt-dlp` ile test eder.
 
-- [ ] Windows: `winget` kurulumundan sonra uygulama `yt-dlp`'yi bulmalı (**Ayarlar > Video**).
+- [ ] Windows: `winget` kurulumundan sonra uygulama `yt-dlp` ve `ffmpeg`i bulmalı (**Ayarlar > Video**).
 - [ ] Windows: gerçek bir video MP4 ve MP3 olarak inmeli; Türkçe başlıklı dosya adı bozulmamalı.
 - [ ] Windows: indirme sırasında duraklat ve iptal; `ffmpeg` süreci geride kalmamalı.
 - [ ] Araçları kaldırıp **Ayarlar > Video** bölümünde kurulum komutunun göründüğünü kontrol edin.

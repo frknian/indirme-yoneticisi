@@ -10,6 +10,26 @@ import 'package:test/test.dart';
 import 'support/test_server.dart';
 
 void main() {
+  test('winget ffmpeg klasörü paket içinde bulunur', () async {
+    final root = await Directory.systemTemp.createTemp('dm_winget_test');
+    addTearDown(() => root.delete(recursive: true));
+    final bin = p.join(
+      root.path,
+      'yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe',
+      'ffmpeg-N-win64-gpl',
+      'bin',
+    );
+    await Directory(bin).create(recursive: true);
+    await Directory(p.join(root.path, 'Other.Tool', 'x', 'bin'))
+        .create(recursive: true);
+
+    final dirs = wingetFfmpegDirs(root.path);
+
+    expect(dirs, contains(bin));
+    expect(dirs.where((d) => d.contains('Other.Tool')), isEmpty);
+    expect(wingetFfmpegDirs(p.join(root.path, 'yok')), isEmpty);
+  });
+
   late Directory toolDir;
   late Directory dir;
   late String fake;

@@ -115,7 +115,35 @@ List<String> mediaToolSearchDirs() {
       p.join(env['LOCALAPPDATA']!, 'Microsoft', 'WinGet', 'Links'),
     if (Platform.isWindows && env['ProgramFiles'] != null)
       p.join(env['ProgramFiles']!, 'WinGet', 'Links'),
+    if (Platform.isWindows) ...[
+      if (env['LOCALAPPDATA'] != null)
+        ...wingetFfmpegDirs(
+          p.join(env['LOCALAPPDATA']!, 'Microsoft', 'WinGet', 'Packages'),
+        ),
+      if (env['ProgramFiles'] != null)
+        ...wingetFfmpegDirs(p.join(env['ProgramFiles']!, 'WinGet', 'Packages')),
+    ],
   ];
+}
+
+/// winget, ffmpeg gibi çok dosyalı paketleri `Links` yerine kendi klasörüne kurar
+/// ve yalnızca PATH'e ekler; o PATH zaten açık olan uygulamaya ulaşmaz.
+List<String> wingetFfmpegDirs(String packagesRoot) {
+  final root = Directory(packagesRoot);
+  if (!root.existsSync()) return const [];
+  final dirs = <String>[];
+  try {
+    for (final package in root.listSync().whereType<Directory>()) {
+      if (!p.basename(package.path).toLowerCase().contains('ffmpeg')) continue;
+      dirs.add(package.path);
+      for (final build in package.listSync().whereType<Directory>()) {
+        dirs.add(p.join(build.path, 'bin'));
+      }
+    }
+  } on FileSystemException {
+    // Okunamayan klasör, aracın bulunamadığı anlamına gelir; hata kurulum ipucuyla bildirilir.
+  }
+  return dirs;
 }
 
 String? _findTool(String name, List<String> dirs) {

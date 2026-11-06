@@ -26,7 +26,8 @@ void main() {
 
   tearDown(() async {
     await server.stop();
-    await dir.delete(recursive: true);
+    // Windows, öldürülen sürecin dosya kilidini hemen bırakmayabilir.
+    await retryFileOperation(() => dir.delete(recursive: true));
   });
 
   Future<Process> startCli() => Process.start(Platform.resolvedExecutable, [
