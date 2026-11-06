@@ -1,6 +1,6 @@
 # İndirme Yöneticisi
 
-Parçalı, duraklatılabilir ve çökmeden kurtulabilen indirme yöneticisi. Flutter ile
+Parçalı, duraklatılabilir ve çökmeden kurtulabilen, torrent de indirebilen indirme yöneticisi. Flutter ile
 macOS ve Windows'ta, ayrıca Linux ve Android'de tek kod tabanından çalışmak üzere yazıldı. Sunucu `Range`
 destekliyorsa dosyayı en fazla 16 parçaya böler ve paralel indirir.
 
@@ -8,7 +8,8 @@ destekliyorsa dosyayı en fazla 16 parçaya böler ve paralel indirir.
 
 | Klasör | İçerik |
 |---|---|
-| `packages/dm_core` | Saf Dart motoru: yoklama, parçalı indirme, kuyruk, metadata, yerel yakalama sunucusu, CLI |
+| `packages/dm_core` | Saf Dart motoru: yoklama, parçalı indirme, torrent, kuyruk, metadata, yerel yakalama sunucusu, CLI |
+| `packages/third_party/dtorrent_task_v2` | Yamalanmış torrent motoru (BSD 3-Clause), yamalar `PATCHES.md` içinde |
 | `app` | Flutter arayüzü ve Android servisi |
 | `extension` | Chrome eklentisi (Manifest V3) |
 
@@ -120,6 +121,11 @@ kopyalayın; yanındaki DLL'ler ve `data` klasörü de gereklidir.
 4. Uygulamada **Ayarlar > Eşleştirme anahtarı** değerini kopyalayın.
 5. Açılan eklenti ayarlarına yapıştırıp **Kaydet ve dene**'ye basın. "Uygulamaya bağlı" yazmalıdır.
 
+### Windows Güvenlik Duvarı
+
+İlk torrent indirmesinde Windows, uygulamanın gelen bağlantı dinlemesi için izin isteyebilir. İzin
+vermezseniz indirme yine çalışır, yalnızca bağlanılabilen eş sayısı azalabilir.
+
 ### Kaldırma
 
 | | Uygulama | Ayarlar ve indirme listesi |
@@ -128,6 +134,34 @@ kopyalayın; yanındaki DLL'ler ve `data` klasörü de gereklidir.
 | Windows | `Release` klasörü | `%APPDATA%\dev.dmapp\download_manager` |
 
 İndirilen dosyalar bu klasörlerde değildir, kaldırma onları etkilemez.
+
+## Kullanım
+
+**İndirme ekle** penceresine adres yapıştırın. Şunlar kabul edilir:
+
+- `http://` ve `https://` dosya bağlantıları
+- `magnet:` bağlantıları
+- `.torrent` ile biten adresler, ya da **Torrent dosyası seç** ile seçilen bir dosya
+
+Android'de paylaş menüsü ve magnet bağlantıları da aynı pencereyi açar.
+
+### Torrent
+
+Torrent indirirken IP adresiniz diğer eşlere görünür ve indirdiğiniz parçalar onlara da gönderilir.
+İndirme bitince gönderim durur. Telifli içerik sorumluluğu kullanıcıya aittir.
+
+### Ayarlar
+
+| Bölüm | Ayar | Varsayılan |
+|---|---|---|
+| Genel | Parça sayısı, aynı anda indirme | 8, 3 |
+| Bağlantı | Zaman aşımı, yeniden deneme | 20 sn, 8 |
+| Bağlantı | İndirme başına hız sınırı, HTTP proxy | Kapalı |
+| Torrent | Eş bağlantısı sınırı, gelen bağlantı portu | 100, otomatik |
+| Torrent | DHT | Açık |
+| Torrent | Yönlendiricide port açma (UPnP) | Kapalı |
+
+UPnP modemde kalıcı bir yönlendirme kaydı bırakabilir, bu yüzden kendiliğinden açılmaz.
 
 ## Geliştirme
 
@@ -167,6 +201,9 @@ cd app && flutter analyze && flutter test
 cd extension && npm test
 ```
 
+`.github/workflows/ci.yml` aynı testleri ve derlemeleri macOS ile Windows'ta çalıştırır; Windows ve
+macOS derlemeleri iş sonucundan indirilebilir.
+
 Elle deneme için hızı sınırlanabilen yerel bir Range sunucusu vardır:
 
 ```bash
@@ -191,6 +228,9 @@ Android emülatöründen bu sunucuya `http://10.0.2.2:8099/test.bin` ile erişil
   `DownloadQueue.changes`).
 - **Android:** önbelleğe alınmış `FlutterEngine` Activity'den bağımsız yaşar; foreground service
   süreci ayakta tutar. Biten dosya MediaStore ile İndirilenler'e taşınır.
+- **Torrent:** motor kendi isolate'ında çalışır ve parçaları SHA-1 ile doğrular. Torrent içindeki `../`
+  gibi yollar, sembolik bağlantılar ve çalıştırma izinleri reddedilir. İlerleme 45 saniye durursa motor
+  yeniden başlatılır.
 - **Tarayıcı bağlantısı:** yalnızca `127.0.0.1` dinlenir. İstekler `Host`, `Origin` ve eşleştirme
   anahtarından geçer, böylece web siteleri indirme başlatamaz.
 
@@ -199,6 +239,13 @@ Kararlar için [DECISIONS.md](DECISIONS.md), elle denenecekler için
 
 ## Bilinen eksikler
 
+- Hız sınırı ve HTTP proxy torrent bağlantılarına uygulanmaz; proxy kullanmanız IP'nizi eşlerden gizlemez.
+- Torrent motoru az bilinen bir kütüphanedir ve birçok hatası elle düzeltildi. Uzun süreli kullanımda
+  sorun çıkarsa bir sonraki aday `libtorrent`'tir. Gerçek ağda yalnızca Debian torrenti ile denendi.
+- Tamamlanan torrent paylaşılmaya (seed) devam etmez; biten torrent listede durur ama gönderim yapmaz.
+- Masaüstünde tarayıcıdaki `magnet:` bağlantısına tıklamak uygulamayı açmaz; bağlantıyı yapıştırın veya
+  eklentinin sağ tık menüsünü kullanın.
+- BitTorrent v2 ve uTP denenmedi; bağlantılar TCP üzerindendir.
 - Çerezler eklentiden uygulamaya aktarılmaz; oturum gerektiren indirmeler başarısız olabilir.
   Bu dosyalarda eklenti açılır penceresinden devralmayı kapatın.
 - `Authorization` ve `Cookie` başlıkları diske yazılmaz. Bu başlıklarla başlatılan indirme,

@@ -74,6 +74,7 @@ class AppController extends ChangeNotifier {
   DownloadException? _startupError;
   String? _pendingUrl;
   String? _publishError;
+  Future<void> _settingsWrite = Future.value();
   DateTime _lastForegroundUpdate = DateTime.fromMillisecondsSinceEpoch(0);
   bool _foregroundRunning = false;
   bool _notificationAsked = false;
@@ -166,7 +167,7 @@ class AppController extends ChangeNotifier {
     String? expectedSha256,
     Map<String, String> headers = const {},
   }) {
-    validateDownloadUri(url);
+    if (!isTorrentUri(url)) validateDownloadUri(url);
     if (!_notificationAsked) {
       _notificationAsked = true;
       unawaited(bridge.requestNotificationPermission());
@@ -199,7 +200,7 @@ class AppController extends ChangeNotifier {
     change(settings);
     queue.maxConcurrent = settings.maxConcurrent;
     queue.tuning = settings.tuning;
-    await settings.save(settingsFile);
+    await _saveSettings();
     final captureChanged =
         beforeEnabled != settings.captureEnabled ||
         beforePort != settings.capturePort ||
@@ -213,6 +214,19 @@ class AppController extends ChangeNotifier {
       }
     }
     notifyListeners();
+  }
+
+  /// Kayıtlar sıraya alınır: aynı anda iki yazım geçici dosyada çakışır. Hata
+  /// indirmeyi etkilemez, kullanıcıya bildirilir.
+  Future<void> _saveSettings() {
+    return _settingsWrite = _settingsWrite.then((_) async {
+      try {
+        await settings.save(settingsFile);
+      } on FileSystemException catch (e) {
+        _publishError = 'Ayarlar kaydedilemedi: ${e.message}';
+        notifyListeners();
+      }
+    });
   }
 
   Future<void> regenerateCaptureToken() =>
@@ -284,19 +298,50 @@ class AppController extends ChangeNotifier {
       if (!_publishAttempted.add(task.id)) continue;
       final path = task.current.filePath;
       final name = task.current.fileName;
-      if (path == null || name == null || !File(path).existsSync()) continue;
-      unawaited(_publish(path, name));
+      if (path == null || name == null) continue;
+      if (Directory(path).existsSync()) {
+        unawaited(_publishFolder(path));
+      } else if (File(path).existsSync()) {
+        unawaited(_publish(path, name));
+      }
     }
   }
 
-  Future<void> _publish(String path, String name) async {
+  /// Çok dosyalı torrentin dosyalarını tek tek aktarır, sonra klasörü siler.
+  Future<void> _publishFolder(String path) async {
+    final files = Directory(path)
+        .listSync(recursive: true)
+        .whereType<File>()
+        .toList();
+    for (final file in files) {
+      if (!await _publish(file.path, p.basename(file.path))) return;
+    }
+    await Directory(path).delete(recursive: true);
+    notifyListeners();
+  }
+
+  Future<bool> _publish(String path, String name) async {
     try {
       await bridge.publishToDownloads(path, name);
       notifyListeners();
+      return true;
     } on PlatformException catch (e) {
       _publishError = '$name İndirilenler klasörüne aktarılamadı: ${e.message}';
       notifyListeners();
+      return false;
     }
+  }
+
+  /// Seçilen `.torrent` dosyasını uygulama klasörüne kopyalar: kaynak silinse veya
+  /// geçici olsa da indirme uygulama yeniden açıldığında sürebilir.
+  Future<Uri> importTorrentFile(String path) async {
+    final folder = Directory(p.join(settingsFile.parent.path, 'torrents'));
+    await folder.create(recursive: true);
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    final copy = await File(
+      path,
+    ).copy(p.join(folder.path, '$stamp-${sanitizeFileName(p.basename(path))}'));
+    return copy.uri;
   }
 
   /// Uygulama kapanırken: indirmeleri güvenle durdurur, listeyi kaydeder.

@@ -17,6 +17,7 @@ import 'retry.dart';
 import 'segment.dart';
 import 'segment_worker.dart';
 import 'speed_meter.dart';
+import 'torrent_worker.dart';
 
 enum _StopMode { pause, cancel }
 
@@ -165,6 +166,10 @@ class DownloadTask {
   Future<void> _run() async {
     _meter.reset();
     try {
+      if (isTorrentUri(request.url)) {
+        await _runTorrent();
+        return;
+      }
       _emit(_progress.copyWith(
         state: DownloadState.probing,
         clearError: true,
@@ -227,6 +232,121 @@ class DownloadTask {
     }
   }
 
+  /// Torrent motorunu kendi isolate'ında çalıştırır ve mesajlarını akışa çevirir.
+  Future<void> _runTorrent() async {
+    _emit(_progress.copyWith(
+      state: DownloadState.probing,
+      isTorrent: true,
+      resumable: true,
+      clearError: true,
+      bytesPerSecond: 0,
+      clearEta: true,
+    ));
+    final port = ReceivePort();
+    final done = Completer<void>();
+    SendPort? control;
+    Isolate? isolate;
+    var settled = false;
+    Object? failure;
+    var last = _progress.downloadedBytes;
+
+    void requestStop() => control?.send(true);
+    unawaited(_stopSignal.future.then((_) => requestStop()));
+
+    port.listen((message) {
+      switch (message) {
+        case TorrentReady(:final controlPort):
+          control = controlPort;
+          if (_stopSignal.isCompleted) requestStop();
+        case TorrentInfo(:final name, :final totalBytes, :final folder):
+          _targetPath = folder;
+          _emit(_progress.copyWith(
+            fileName: name,
+            filePath: folder,
+            totalBytes: totalBytes,
+          ));
+        case TorrentProgress():
+          _meter.add(message.downloadedBytes - last);
+          last = message.downloadedBytes;
+          final total = _progress.totalBytes;
+          _emit(_progress.copyWith(
+            state: DownloadState.downloading,
+            downloadedBytes: message.downloadedBytes,
+            bytesPerSecond: message.bytesPerSecond,
+            uploadBytesPerSecond: message.uploadBytesPerSecond,
+            peers: message.peers,
+            seeds: message.seeds,
+            activeConnections: message.peers,
+            eta: _meter.eta(total == null ? null : total - last),
+            clearEta: total == null,
+          ));
+        case TorrentDone(:final path, :final totalBytes):
+          settled = true;
+          _targetPath = path;
+          _emit(_progress.copyWith(
+            state: DownloadState.completed,
+            totalBytes: totalBytes,
+            downloadedBytes: totalBytes,
+            bytesPerSecond: 0,
+            uploadBytesPerSecond: 0,
+            clearEta: true,
+            activeConnections: 0,
+            peers: 0,
+            seeds: 0,
+            fileName: p.basename(path),
+            filePath: path,
+            clearError: true,
+          ));
+        case TorrentStopped():
+          settled = true;
+        case TorrentFailed(:final error):
+          settled = true;
+          failure = error;
+        case List<dynamic>():
+          // Motorda yakalanmamış hata; ardından onExit (null) gelir.
+          settled = true;
+          failure = NetworkException('Torrent motoru durdu: ${message.first}');
+        case null:
+          if (!done.isCompleted) done.complete();
+      }
+    });
+
+    try {
+      isolate = await Isolate.spawn(
+        torrentWorkerMain,
+        TorrentWorkerConfig(
+          mainPort: port.sendPort,
+          source: request.url.toString(),
+          directory: request.directory,
+          targetPath: _targetPath,
+          settings: tuning.torrent,
+          proxy: tuning.proxy,
+          connectionTimeout: tuning.connectionTimeout,
+          progressInterval: tuning.progressInterval,
+        ),
+        onExit: port.sendPort,
+        onError: port.sendPort,
+        debugName: 'dm-torrent',
+      );
+      // Motor durmazsa isolate öldürülür; ilerleme kaydı motorun durum dosyasındadır.
+      unawaited(_stopSignal.future.then((_) async {
+        await Future<void>.delayed(const Duration(seconds: 10));
+        isolate?.kill(priority: Isolate.immediate);
+      }));
+      await done.future;
+    } finally {
+      port.close();
+    }
+
+    if (_stopSignal.isCompleted && state != DownloadState.completed) {
+      throw const _StopSignal();
+    }
+    if (failure != null) throw failure!;
+    if (!settled) {
+      throw const NetworkException('Torrent motoru beklenmedik şekilde durdu');
+    }
+  }
+
   Future<void> _settleStop() async {
     if (_stopMode == _StopMode.cancel) {
       await _deleteArtifacts();
@@ -262,6 +382,14 @@ class DownloadTask {
   Future<void> _deleteArtifacts() async {
     final target = _targetPath;
     if (target == null) return;
+    if (isTorrentUri(request.url)) {
+      try {
+        await deleteTorrentFolder(request.directory, target);
+      } on DownloadException catch (e) {
+        _emit(_progress.copyWith(error: e));
+      }
+      return;
+    }
     try {
       await MetadataStore(target).deleteAll();
     } on DownloadException catch (e) {

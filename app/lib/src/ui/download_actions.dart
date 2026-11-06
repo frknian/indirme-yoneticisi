@@ -66,7 +66,9 @@ class DownloadActions extends StatelessWidget {
     // Android'de dosya İndirilenler'e taşındıysa burada silinecek bir şey yoktur;
     // herkese açık kopya kullanıcınındır ve seçenek olarak sunulmaz.
     final path = task.current.filePath;
-    final fileExists = path != null && File(path).existsSync();
+    final fileExists =
+        path != null &&
+        FileSystemEntity.typeSync(path) != FileSystemEntityType.notFound;
     if (task.state != DownloadState.completed || !fileExists) {
       await controller.remove(task);
       return;

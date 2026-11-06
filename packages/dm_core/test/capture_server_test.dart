@@ -101,6 +101,16 @@ void main() {
     expect(received, isEmpty);
   });
 
+  test('magnet kabul edilir', () async {
+    final (status, _) = await send(
+      'POST',
+      '/download',
+      body: jsonEncode({'url': 'magnet:?xt=urn:btih:abc'}),
+    );
+    expect(status, HttpStatus.accepted);
+    expect(received.single.url.isScheme('magnet'), isTrue);
+  });
+
   test('http/https dışı adres reddedilir', () async {
     for (final url in [
       'file:///etc/passwd',

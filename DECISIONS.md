@@ -30,3 +30,9 @@
 - **Bağlantı ayarları:** zaman aşımı, yeniden deneme, indirme başına hız sınırı ve kimlik doğrulamasız HTTP proxy; proxy parolası düz metin ayar dosyasına yazılmasın diye desteklenmiyor.
 - **Hız sınırı:** indirme başına uygulanır ve kalan parçalara eşit bölünür; indirmeler arasında ortak bir sınır yok.
 - **Logo:** tek kaynak `app/lib/src/ui/logo.dart`; ikonlar `tool/generate_icons_test.dart` ve `tool/install_icons.py` ile üretilir, SVG kopyası `app/assets/logo/logo.svg`.
+- **Torrent motoru:** `dtorrent_task_v2` saf Dart olduğu için ek ikili dosya gerektirmez; ama hataları nedeniyle `packages/third_party` altına alınıp yamalandı (`PATCHES.md`), pub'dan kullanılmıyor.
+- **Torrent çalışma düzeni:** motor ayrı isolate'ta, kuyruk ve UI aynı `DownloadTask` arayüzüyle bağlanır; yeni görev tipi eklenmedi.
+- **UPnP:** varsayılan kapalı; motor kaydı durdurulunca bile kaldırmıyordu ve yönlendirici ayarı kullanıcının kararıdır.
+- **Torrent klasör düzeni:** indirme geçici `<ad>` klasöründe yapılır, bitince içerik son adına taşınır; var olan dosyanın üzerine yazılmaz.
+- **Takılma bekçisi:** son parçalarda görülen takılmaya karşı 45 sn ilerleme yoksa motor yeniden başlatılır.
+- **Seed:** tamamlanınca bağlantılar kapanır; pil ve veri kullanımını kullanıcıya sormadan sürdürmemek için.

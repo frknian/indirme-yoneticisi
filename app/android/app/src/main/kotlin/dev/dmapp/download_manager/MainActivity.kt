@@ -41,21 +41,22 @@ class MainActivity : FlutterActivity() {
     private fun handleIntent(intent: Intent?) {
         val url = when (intent?.action) {
             Intent.ACTION_SEND -> extractUrl(intent.getStringExtra(Intent.EXTRA_TEXT))
-            Intent.ACTION_VIEW -> intent.dataString?.takeIf(::isHttpUrl)
+            Intent.ACTION_VIEW -> intent.dataString?.takeIf(::isDownloadUrl)
             else -> null
         }
         if (url != null) bridge.deliverSharedUrl(url)
     }
 
-    private fun isHttpUrl(value: String): Boolean =
+    private fun isDownloadUrl(value: String): Boolean =
         value.startsWith("http://", ignoreCase = true) ||
-            value.startsWith("https://", ignoreCase = true)
+            value.startsWith("https://", ignoreCase = true) ||
+            value.startsWith("magnet:", ignoreCase = true)
 
     /** Paylaşılan metnin içindeki ilk http(s) bağlantısını bulur. */
     private fun extractUrl(text: String?): String? =
         text?.let { URL_PATTERN.find(it)?.value }
 
     private companion object {
-        val URL_PATTERN = Regex("""https?://\S+""", RegexOption.IGNORE_CASE)
+        val URL_PATTERN = Regex("""(https?://|magnet:\?)\S+""", RegexOption.IGNORE_CASE)
     }
 }

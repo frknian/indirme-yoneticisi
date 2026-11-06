@@ -12,6 +12,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+class _RecordingController extends AppController {
+  _RecordingController({
+    required super.settings,
+    required super.queue,
+    required super.bridge,
+    required super.settingsFile,
+  });
+
+  final List<Uri> added = [];
+
+  @override
+  DownloadTask addDownload(
+    Uri url, {
+    String? fileName,
+    String? expectedSha256,
+    Map<String, String> headers = const {},
+  }) {
+    added.add(url);
+    return DownloadTask(
+      DownloadRequest(url: url, directory: settings.downloadDirectory),
+    );
+  }
+}
+
 void main() {
   late Directory dir;
   late AppController controller;
@@ -71,7 +95,7 @@ void main() {
     await tester.tap(find.text('İndir'));
     await tester.pump();
     expect(
-      find.text('Adres http:// veya https:// ile başlamalı'),
+      find.text('Adres http://, https:// veya magnet: ile başlamalı'),
       findsOneWidget,
     );
     expect(controller.tasks, isEmpty);
@@ -80,7 +104,7 @@ void main() {
   testWidgets('ayarlar: bağlantı bölümü görünür, geçersiz proxy reddedilir', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(500, 1600);
+    tester.view.physicalSize = const Size(500, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
@@ -130,6 +154,69 @@ void main() {
     expect(clamped.maxAttempts, 20);
     expect(clamped.speedLimitKiB, 0);
     expect(clamped.proxy, isNull, reason: 'geçersiz yönerge reddedilmeli');
+  });
+
+  testWidgets('magnet kabul edilir ve motora iletilir', (tester) async {
+    // Gerçek denetleyici ağa çıkacağı için yalnızca çağrı kaydedilir.
+    final recording = _RecordingController(
+      settings: controller.settings,
+      queue: controller.queue,
+      bridge: controller.bridge,
+      settingsFile: controller.settingsFile,
+    );
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppController>.value(
+        value: recording,
+        child: const MaterialApp(home: HomePage()),
+      ),
+    );
+    await tester.tap(find.text('İndirme ekle'));
+    await tester.pumpAndSettle();
+    const magnet =
+        'magnet:?xt=urn:btih:7acf8fb590b2060dd9c3146ef770169d593433b0';
+    await tester.enterText(find.byType(TextFormField).first, magnet);
+    await tester.tap(find.text('İndir'));
+    await tester.pump();
+    expect(recording.added, [Uri.parse(magnet)]);
+  });
+
+  test('torrent ayarları güvenli varsayılanlarla motora geçer', () async {
+    final settings = AppSettings(
+      downloadDirectory: dir.path,
+      captureToken: 'a' * 64,
+    );
+    expect(settings.tuning.torrent.portForwarding, isFalse);
+    expect(settings.tuning.torrent.maxPeers, 100);
+
+    settings
+      ..torrentMaxPeers = 40
+      ..torrentListenPort = 51000
+      ..torrentDht = false
+      ..torrentPortForwarding = true;
+    final file = File('${dir.path}/t.json');
+    await settings.save(file);
+    final loaded = await AppSettings.load(file, defaultDirectory: dir.path);
+    final tuning = loaded.tuning.torrent;
+    expect(tuning.maxPeers, 40);
+    expect(tuning.listenPort, 51000);
+    expect(tuning.dht, isFalse);
+    expect(tuning.portForwarding, isTrue);
+  });
+
+  test('eşzamanlı ayar kayıtları çakışmaz, son değer kalır', () async {
+    await Future.wait([
+      for (var i = 1; i <= 16; i++)
+        controller.updateSettings((s) => s.segments = i),
+    ]);
+    expect(controller.publishError, isNull);
+    final saved = await AppSettings.load(
+      controller.settingsFile,
+      defaultDirectory: dir.path,
+    );
+    expect(saved.segments, 16);
   });
 
   test('biçimlendirme', () {

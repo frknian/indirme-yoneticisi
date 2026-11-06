@@ -7,6 +7,7 @@ import 'exceptions.dart';
 import 'file_ops.dart';
 import 'metadata_store.dart';
 import 'models.dart';
+import 'torrent_worker.dart';
 
 /// İndirme kuyruğu: aynı anda en fazla [maxConcurrent] görev çalıştırır ve
 /// isteğe bağlı olarak listeyi diske yazar (uygulama yeniden açılınca geri yükler).
@@ -87,8 +88,12 @@ class DownloadQueue {
       final path = task.current.filePath;
       if (path != null) {
         try {
-          final file = File(path);
-          if (await file.exists()) await retryFileOperation(file.delete);
+          if (await Directory(path).exists()) {
+            await deleteTorrentFolder(task.request.directory, path);
+          } else {
+            final file = File(path);
+            if (await file.exists()) await retryFileOperation(file.delete);
+          }
         } on FileSystemException catch (e) {
           throw wrapFileSystemError('Dosya silinemedi: $path', e);
         }

@@ -16,6 +16,10 @@ class AppSettings {
     this.maxAttempts = 8,
     this.speedLimitKiB = 0,
     this.proxy,
+    this.torrentMaxPeers = 100,
+    this.torrentListenPort = 0,
+    this.torrentDht = true,
+    this.torrentPortForwarding = false,
   });
 
   factory AppSettings.fromJson(
@@ -46,6 +50,10 @@ class AppSettings {
       ),
       maxAttempts: _clamp(json['maxAttempts'], 1, 20, 8),
       speedLimitKiB: _clamp(json['speedLimitKiB'], 0, 10 * 1024 * 1024, 0),
+      torrentMaxPeers: _clamp(json['torrentMaxPeers'], 10, 300, 100),
+      torrentListenPort: _clamp(json['torrentListenPort'], 0, 65535, 0),
+      torrentDht: json['torrentDht'] as bool? ?? true,
+      torrentPortForwarding: json['torrentPortForwarding'] as bool? ?? false,
       proxy: switch (json['proxy']) {
         final String value when isValidProxy(value) => value,
         _ => null,
@@ -68,12 +76,28 @@ class AppSettings {
   /// `sunucu:port`; null doğrudan bağlantı.
   String? proxy;
 
+  /// Eşzamanlı eş bağlantısı üst sınırı.
+  int torrentMaxPeers;
+
+  /// Gelen bağlantı portu; 0 otomatik.
+  int torrentListenPort;
+  bool torrentDht;
+
+  /// UPnP ile yönlendiricide port açılsın mı? Varsayılan kapalı.
+  bool torrentPortForwarding;
+
   /// Motorun kullandığı bağlantı ayarları.
   DownloadTuning get tuning => DownloadTuning(
     connectionTimeout: Duration(seconds: connectionTimeoutSeconds),
     retry: RetryPolicy(maxAttempts: maxAttempts),
     maxBytesPerSecond: speedLimitKiB * 1024,
     proxy: proxy,
+    torrent: TorrentSettings(
+      maxPeers: torrentMaxPeers,
+      listenPort: torrentListenPort,
+      dht: torrentDht,
+      portForwarding: torrentPortForwarding,
+    ),
   );
 
   Map<String, dynamic> toJson() => {
@@ -87,6 +111,10 @@ class AppSettings {
     'maxAttempts': maxAttempts,
     'speedLimitKiB': speedLimitKiB,
     'proxy': proxy,
+    'torrentMaxPeers': torrentMaxPeers,
+    'torrentListenPort': torrentListenPort,
+    'torrentDht': torrentDht,
+    'torrentPortForwarding': torrentPortForwarding,
   };
 
   static int _clamp(Object? value, int low, int high, int fallback) =>

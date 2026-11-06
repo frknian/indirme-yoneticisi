@@ -56,3 +56,16 @@ Bu derlemeler macOS'ta yapılamaz. Kod ortak olduğundan yalnızca statik analiz
 - [ ] Gerçek bir HTTP proxy ile HTTPS dosyası indirin (testler yalnızca HTTP proxy'yi kapsıyor).
 - [ ] Geçersiz proxy yazın: "sunucu:port biçiminde olmalı" görünmeli.
 - [ ] macOS Dock, Windows görev çubuğu ve Android ana ekranında yeni ikonu kontrol edin.
+
+## Torrent
+
+Debian imajı ile doğrulandı: `.torrent` ve magnet (komut satırı), durdurup devam etme, SHA-256 eşleşmesi.
+Uygulamada macOS ve Android'de gerçek magnet başlatıldı, ama bitişine kadar izlenmedi.
+
+- [ ] Uygulamada bir torrenti sonuna kadar indirin; dosya doğru yerde olmalı.
+- [ ] Android: çok dosyalı torrent bitince dosyalar İndirilenler'e aktarılmalı.
+- [ ] Windows: gerçek torrent indirin (Güvenlik Duvarı izni dahil). CI yalnızca yerel testleri çalıştırır.
+- [ ] **Torrent dosyası seç** düğmesini macOS, Windows ve Android'de deneyin.
+- [ ] Ayarlar: UPnP açıkken modemde kayıt oluşmalı, kapalıyken oluşmamalı.
+- [ ] Ayarlar: gelen bağlantı portu ve eş sınırı değişikliği yeni indirmede geçerli olmalı.
+- [ ] Eklenti: bir magnet bağlantısına sağ tıklayıp uygulamaya gönderin.

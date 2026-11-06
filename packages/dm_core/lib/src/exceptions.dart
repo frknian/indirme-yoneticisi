@@ -74,6 +74,11 @@ final class CaptureServerException extends DownloadException {
   const CaptureServerException(super.message, {super.cause});
 }
 
+/// Torrent dosyası veya magnet bağlantısı geçersiz ya da güvensiz.
+final class InvalidTorrentException extends DownloadException {
+  const InvalidTorrentException(super.message, {super.cause});
+}
+
 /// Beklenmeyen, sınıflandırılamayan hata.
 final class UnexpectedDownloadException extends DownloadException {
   const UnexpectedDownloadException(super.message, {super.cause});

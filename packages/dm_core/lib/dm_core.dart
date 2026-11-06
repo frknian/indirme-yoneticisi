@@ -22,3 +22,4 @@ export 'src/queue.dart';
 export 'src/retry.dart' show RetryPolicy;
 export 'src/segment.dart' show Segment, planSegments;
 export 'src/speed_meter.dart' show SpeedMeter;
+export 'src/torrent_worker.dart' show deleteTorrentFolder;

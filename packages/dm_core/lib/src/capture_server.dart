@@ -147,8 +147,9 @@ class CaptureServer {
     try {
       final json = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
       final url = Uri.parse(json['url'] as String);
-      if (!(url.isScheme('http') || url.isScheme('https')) ||
-          url.host.isEmpty) {
+      final isWeb = (url.isScheme('http') || url.isScheme('https')) &&
+          url.host.isNotEmpty;
+      if (!isWeb && !url.isScheme('magnet')) {
         return await _reply(response, HttpStatus.badRequest, 'bad_url');
       }
       capture = CaptureRequest(

@@ -92,6 +92,54 @@ class SettingsPage extends StatelessWidget {
           ),
           const _ConnectionFields(),
           const Divider(),
+          const _SectionHeader('Torrent'),
+          ListTile(
+            title: Text('Eş bağlantısı sınırı: ${settings.torrentMaxPeers}'),
+            subtitle: Slider(
+              value: settings.torrentMaxPeers.toDouble(),
+              min: 10,
+              max: 300,
+              divisions: 29,
+              label: '${settings.torrentMaxPeers}',
+              onChanged: (value) => unawaited(
+                controller.updateSettings(
+                  (s) => s.torrentMaxPeers = value.round(),
+                ),
+              ),
+            ),
+          ),
+          const _TorrentPortField(),
+          SwitchListTile(
+            title: const Text('DHT ile eş ara'),
+            subtitle: const Text('İzleyicisiz torrentlerde eş bulmayı sağlar.'),
+            value: settings.torrentDht,
+            onChanged: (value) => unawaited(
+              controller.updateSettings((s) => s.torrentDht = value),
+            ),
+          ),
+          SwitchListTile(
+            title: const Text('Yönlendiricide port aç (UPnP)'),
+            subtitle: const Text(
+              'Gelen bağlantıları artırır, ama modemde kalıcı bir yönlendirme '
+              'kaydı bırakabilir. Gerekmedikçe kapalı tutun.',
+            ),
+            value: settings.torrentPortForwarding,
+            onChanged: (value) => unawaited(
+              controller.updateSettings((s) => s.torrentPortForwarding = value),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Text(
+              'Torrent indirirken IP adresiniz diğer eşlere görünür ve parçalar '
+              'onlara da gönderilir. Hız sınırı ve HTTP proxy torrent '
+              'bağlantılarına uygulanmaz.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const Divider(),
           if (Platform.isAndroid)
             const ListTile(
               title: Text('İndirme klasörü'),
@@ -111,6 +159,62 @@ class SettingsPage extends StatelessWidget {
             const _CaptureSection(),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _TorrentPortField extends StatefulWidget {
+  const _TorrentPortField();
+
+  @override
+  State<_TorrentPortField> createState() => _TorrentPortFieldState();
+}
+
+class _TorrentPortFieldState extends State<_TorrentPortField> {
+  late final AppController _controller;
+  late final TextEditingController _port;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = context.read<AppController>();
+    final port = _controller.settings.torrentListenPort;
+    _port = TextEditingController(text: port == 0 ? '' : '$port');
+  }
+
+  @override
+  void dispose() {
+    _port.dispose();
+    super.dispose();
+  }
+
+  void _apply(String text) {
+    final trimmed = text.trim();
+    final port = trimmed.isEmpty ? 0 : int.tryParse(trimmed);
+    if (port == null || (port != 0 && (port < 1024 || port > 65535))) {
+      setState(() => _error = 'Port 1024 ile 65535 arasında olmalı');
+      return;
+    }
+    setState(() => _error = null);
+    unawaited(_controller.updateSettings((s) => s.torrentListenPort = port));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: TextField(
+        controller: _port,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        decoration: InputDecoration(
+          labelText: 'Gelen bağlantı portu',
+          hintText: 'Boş bırakılırsa otomatik',
+          errorText: _error,
+        ),
+        onChanged: _apply,
       ),
     );
   }

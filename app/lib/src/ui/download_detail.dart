@@ -46,10 +46,17 @@ class DownloadDetail extends StatelessWidget {
         ],
         const SizedBox(height: 16),
         _Field('İlerleme', progressSummary(p)),
+        if (p.isTorrent && p.state == DownloadState.downloading)
+          _Field(
+            'Bağlantılar',
+            '${p.peers} eş, ${p.seeds} kaynak  •  '
+                'gönderim ${formatBytes(p.uploadBytesPerSecond.round())}/sn',
+          ),
         _Field('Adres', task.request.url.toString(), copyable: true),
         if (p.filePath != null)
           if (p.state == DownloadState.completed &&
-              !File(p.filePath!).existsSync())
+              FileSystemEntity.typeSync(p.filePath!) ==
+                  FileSystemEntityType.notFound)
             Platform.isAndroid
                 ? const _Field('Konum', 'İndirilenler klasörü')
                 : const _Field('Konum', 'Dosya taşınmış veya silinmiş')
@@ -71,7 +78,8 @@ class DownloadDetail extends StatelessWidget {
         if (p.state == DownloadState.completed &&
             p.filePath != null &&
             AppController.isDesktop &&
-            File(p.filePath!).existsSync())
+            FileSystemEntity.typeSync(p.filePath!) !=
+                FileSystemEntityType.notFound)
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: TextButton.icon(

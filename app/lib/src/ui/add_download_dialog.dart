@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:dm_core/dm_core.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -49,10 +52,11 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
     if (text.isEmpty) return 'Bir adres girin';
     final uri = Uri.tryParse(text);
     if (uri == null) return 'Geçersiz adres';
+    if (isTorrentUri(uri)) return null;
     try {
       validateDownloadUri(uri);
     } on InvalidUrlException {
-      return 'Adres http:// veya https:// ile başlamalı';
+      return 'Adres http://, https:// veya magnet: ile başlamalı';
     }
     return null;
   }
@@ -61,6 +65,30 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
     final text = value?.trim() ?? '';
     if (text.isEmpty || isValidSha256(text)) return null;
     return '64 karakterlik onaltılık özet olmalı';
+  }
+
+  Future<void> _pickTorrent() async {
+    final controller = context.read<AppController>();
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final file = await openFile(
+        acceptedTypeGroups: const [
+          XTypeGroup(
+            label: 'Torrent',
+            extensions: ['torrent'],
+            mimeTypes: ['application/x-bittorrent'],
+            uniformTypeIdentifiers: ['public.data'],
+          ),
+        ],
+      );
+      if (file == null) return;
+      final uri = await controller.importTorrentFile(file.path);
+      if (mounted) _url.text = uri.toString();
+    } on FileSystemException catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Dosya okunamadı: ${e.message}')),
+      );
+    }
   }
 
   void _submit() {
@@ -93,13 +121,21 @@ class _AddDownloadDialogState extends State<AddDownloadDialog> {
                   keyboardType: TextInputType.url,
                   textInputAction: TextInputAction.done,
                   decoration: const InputDecoration(
-                    labelText: 'Adres',
+                    labelText: 'Adres veya magnet bağlantısı',
                     hintText: 'https://ornek.com/dosya.zip',
                   ),
                   validator: _validateUrl,
                   onFieldSubmitted: (_) => _submit(),
                 ),
                 const SizedBox(height: 8),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton.icon(
+                    onPressed: _pickTorrent,
+                    icon: const Icon(Icons.file_open_outlined),
+                    label: const Text('Torrent dosyası seç'),
+                  ),
+                ),
                 if (!_advanced)
                   Align(
                     alignment: AlignmentDirectional.centerStart,

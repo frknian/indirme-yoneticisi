@@ -64,6 +64,7 @@ class DownloadTuning {
     this.userAgent = 'dm_core/0.1',
     this.maxBytesPerSecond = 0,
     this.proxy,
+    this.torrent = const TorrentSettings(),
   });
 
   final RetryPolicy retry;
@@ -87,6 +88,51 @@ class DownloadTuning {
 
   /// HTTP proxy, `sunucu:port` biçiminde; null doğrudan bağlantı demektir.
   final String? proxy;
+
+  /// Torrent bağlantı ayarları.
+  final TorrentSettings torrent;
+}
+
+/// Torrent motorunun bağlantı ayarları.
+class TorrentSettings {
+  const TorrentSettings({
+    this.maxPeers = 100,
+    this.listenPort = 0,
+    this.dht = true,
+    this.portForwarding = false,
+    this.stallTimeout = const Duration(seconds: 45),
+    this.metadataTimeout = const Duration(minutes: 3),
+    this.allowLoopbackPeers = false,
+  });
+
+  /// Eşzamanlı eş bağlantısı üst sınırı.
+  final int maxPeers;
+
+  /// Gelen bağlantı portu; 0 işletim sistemine bırakır.
+  final int listenPort;
+  final bool dht;
+
+  /// UPnP/NAT-PMP ile yönlendiricide port açılsın mı? Yönlendirici ayarını
+  /// değiştirdiği için yalnızca kullanıcı isterse açılır.
+  final bool portForwarding;
+
+  /// İlerleme bu kadar süre durursa motor yeniden başlatılır.
+  final Duration stallTimeout;
+
+  /// Magnet bilgisinin alınması için en uzun süre.
+  final Duration metadataTimeout;
+
+  /// Yalnızca yerel testler içindir; gerçek kullanımda loopback eş reddedilir.
+  final bool allowLoopbackPeers;
+}
+
+/// Bu adres torrent olarak mı indirilmeli?
+bool isTorrentUri(Uri uri) {
+  if (uri.isScheme('magnet')) return true;
+  if (uri.isScheme('file') || uri.isScheme('http') || uri.isScheme('https')) {
+    return uri.path.toLowerCase().endsWith('.torrent');
+  }
+  return false;
 }
 
 /// `sunucu:port` biçimini doğrular. `findProxy` yönergesine başka bir şey
@@ -127,6 +173,10 @@ class DownloadProgress {
     this.activeConnections = 0,
     this.resumable = true,
     this.restarts = 0,
+    this.isTorrent = false,
+    this.peers = 0,
+    this.seeds = 0,
+    this.uploadBytesPerSecond = 0,
     this.fileName,
     this.filePath,
     this.sha256,
@@ -148,6 +198,12 @@ class DownloadProgress {
 
   /// Sunucudaki dosya değiştiği için baştan başlama sayısı.
   final int restarts;
+  final bool isTorrent;
+
+  /// Bağlı eş ve kaynak sayısı (yalnızca torrent).
+  final int peers;
+  final int seeds;
+  final double uploadBytesPerSecond;
   final String? fileName;
   final String? filePath;
   final String? sha256;
@@ -171,6 +227,10 @@ class DownloadProgress {
     int? activeConnections,
     bool? resumable,
     int? restarts,
+    bool? isTorrent,
+    int? peers,
+    int? seeds,
+    double? uploadBytesPerSecond,
     String? fileName,
     String? filePath,
     String? sha256,
@@ -187,6 +247,10 @@ class DownloadProgress {
         activeConnections: activeConnections ?? this.activeConnections,
         resumable: resumable ?? this.resumable,
         restarts: restarts ?? this.restarts,
+        isTorrent: isTorrent ?? this.isTorrent,
+        peers: peers ?? this.peers,
+        seeds: seeds ?? this.seeds,
+        uploadBytesPerSecond: uploadBytesPerSecond ?? this.uploadBytesPerSecond,
         fileName: fileName ?? this.fileName,
         filePath: filePath ?? this.filePath,
         sha256: sha256 ?? this.sha256,

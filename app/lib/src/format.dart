@@ -39,6 +39,7 @@ String progressSummary(DownloadProgress p) {
   );
   if (p.state == DownloadState.downloading) {
     parts.add('${formatBytes(p.bytesPerSecond.round())}/sn');
+    if (p.isTorrent) parts.add('${p.peers} eş');
     if (p.eta != null) parts.add('kalan ${formatDuration(p.eta!)}');
   } else {
     parts.add(stateLabel(p.state));

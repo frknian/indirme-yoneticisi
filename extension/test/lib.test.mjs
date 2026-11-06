@@ -14,6 +14,7 @@ const fakeFetch = (status, sink = []) => async (url, init) => {
 test("yalnızca http(s) yakalanır", () => {
   assert.equal(isCapturableUrl("https://a/b"), true);
   assert.equal(isCapturableUrl("http://a/b"), true);
+  assert.equal(isCapturableUrl("magnet:?xt=urn:btih:abc"), true);
   for (const bad of ["blob:https://a/1", "data:text/plain,x", "file:///x", "", undefined]) {
     assert.equal(isCapturableUrl(bad), false, String(bad));
   }

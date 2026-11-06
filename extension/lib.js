@@ -11,7 +11,7 @@ export const DEFAULT_CONFIG = Object.freeze({
 export function isCapturableUrl(url) {
   try {
     const { protocol } = new URL(url);
-    return protocol === "http:" || protocol === "https:";
+    return protocol === "http:" || protocol === "https:" || protocol === "magnet:";
   } catch {
     return false;
   }
